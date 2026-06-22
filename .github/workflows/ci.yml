@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        shell: bash
+        run: |
+          mapfile -t projects < <(find src tests -name '*.csproj' -print 2>/dev/null || true)
+          if [ "${#projects[@]}" -gt 0 ]; then
+            for project in "${projects[@]}"; do
+              dotnet restore "$project"
+            done
+          else
+            echo "No .NET project found yet. Skipping restore."
+          fi
+
+      - name: Build
+        shell: bash
+        run: |
+          mapfile -t projects < <(find src tests -name '*.csproj' -print 2>/dev/null || true)
+          if [ "${#projects[@]}" -gt 0 ]; then
+            for project in "${projects[@]}"; do
+              dotnet build "$project" --no-restore
+            done
+          else
+            echo "No .NET project found yet. Skipping build."
+          fi
+
+      - name: Test
+        shell: bash
+        run: |
+          mapfile -t test_projects < <(find tests -name '*.csproj' -print 2>/dev/null || true)
+          if [ "${#test_projects[@]}" -gt 0 ]; then
+            for project in "${test_projects[@]}"; do
+              dotnet test "$project" --no-build --verbosity normal
+            done
+          else
+            echo "No backend test project found yet. Skipping tests."
+          fi
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install and build
+        shell: bash
+        run: |
+          if [ ! -d web/sun-admin-web ]; then
+            echo "Frontend directory not found yet. Skipping build."
+            exit 0
+          fi
+
+          cd web/sun-admin-web
+
+          if [ -f package-lock.json ]; then
+            npm ci
+            npm run build
+          elif [ -f package.json ]; then
+            npm install
+            npm run build
+          else
+            echo "No frontend package found yet. Skipping build."
+          fi

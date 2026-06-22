@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SunAdmin.Api/SunAdmin.Api.csproj" />
+    <Project Path="src/SunAdmin.Application/SunAdmin.Application.csproj" />
+    <Project Path="src/SunAdmin.Contracts/SunAdmin.Contracts.csproj" />
+    <Project Path="src/SunAdmin.Domain/SunAdmin.Domain.csproj" />
+    <Project Path="src/SunAdmin.Infrastructure/SunAdmin.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SunAdmin.IntegrationTests/SunAdmin.IntegrationTests.csproj" />
+    <Project Path="tests/SunAdmin.UnitTests/SunAdmin.UnitTests.csproj" />
+  </Folder>
+</Solution>

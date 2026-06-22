@@ -1,0 +1,61 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: sun-admin-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-sun_admin_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-sun_admin}
+      MYSQL_USER: ${MYSQL_USER:-sun_admin}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sun_admin_password}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  api:
+    container_name: sun-admin-api
+    build:
+      context: .
+      dockerfile: src/SunAdmin.Api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      ConnectionStrings__Default: ${ConnectionStrings__Default:-Data Source=mysql;Port=3306;User ID=sun_admin;Password=sun_admin_password;Initial Catalog=sun_admin;Charset=utf8mb4;SslMode=none;Min pool size=1}
+      Database__SyncStructure: ${Database__SyncStructure:-true}
+      Database__SeedData: ${Database__SeedData:-true}
+      Jwt__Issuer: ${Jwt__Issuer:-sun-admin}
+      Jwt__Audience: ${Jwt__Audience:-sun-admin}
+      Jwt__Secret: ${Jwt__Secret:-replace-with-a-long-random-secret-at-least-32-characters}
+      Jwt__AccessTokenMinutes: ${Jwt__AccessTokenMinutes:-120}
+      Seed__AdminUserName: ${Seed__AdminUserName:-admin}
+      Seed__AdminEmail: ${Seed__AdminEmail:-admin@sun-admin.local}
+      Seed__AdminPassword: ${Seed__AdminPassword:-ChangeMe_123456}
+    ports:
+      - "127.0.0.1:${API_PORT:-5000}:8080"
+
+  web:
+    container_name: sun-admin-web
+    build:
+      context: web/sun-admin-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL-}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  mysql-data:

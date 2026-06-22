@@ -1,0 +1,22 @@
+using FluentValidation;
+using SunAdmin.Contracts.Auth;
+
+namespace SunAdmin.Api.Validation;
+
+public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
+{
+    public LoginRequestValidator()
+    {
+        RuleFor(x => x.Account).NotEmpty().MaximumLength(128);
+        RuleFor(x => x.Password).NotEmpty().MinimumLength(6).MaximumLength(128);
+    }
+}
+
+public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRequest>
+{
+    public ChangePasswordRequestValidator()
+    {
+        RuleFor(x => x.OldPassword).NotEmpty();
+        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8).MaximumLength(128);
+    }
+}

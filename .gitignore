@@ -1,0 +1,56 @@
+# .NET
+bin/
+obj/
+TestResults/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.nupkg
+*.snupkg
+coverage/
+coverage.cobertura.xml
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+.turbo/
+.next/
+.nuxt/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Local databases and runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+mysql-data/
+data/
+
+# Docker and OS noise
+.docker/
+.DS_Store
+Thumbs.db
