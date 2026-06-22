@@ -1,5 +1,7 @@
 import {
+  ApartmentOutlined,
   ArrowRightOutlined,
+  IdcardOutlined,
   MenuFoldOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
@@ -84,45 +86,43 @@ export default function DashboardPage() {
           <h1>系统概览</h1>
           <p>快速查看账号、角色和权限菜单的当前状态。</p>
         </div>
-        <div className="page-summary">
+      </div>
+      <div className="dashboard-workbench">
+        <div className="metric-strip">
           <span>
-            <strong>{users.length}</strong>
-            最近用户
+            <strong>{users.filter((item) => item.status === 'Enabled').length}</strong>
+            启用用户
           </span>
           <span>
-            <strong>{roles.length}</strong>
+            <strong>{roles.filter((item) => item.status === 'Enabled').length}</strong>
+            启用角色
+          </span>
+          <span>
+            <strong>{flatMenus.filter((item) => item.type === 'Button').length}</strong>
+            按钮权限
+          </span>
+        </div>
+        <div className="quick-strip">
+          <Button icon={<TeamOutlined />} onClick={() => navigate('/users')}>
+            用户
+          </Button>
+          <Button icon={<SafetyCertificateOutlined />} onClick={() => navigate('/roles')}>
             角色
-          </span>
-          <span>
-            <strong>{flatMenus.length}</strong>
-            菜单节点
-          </span>
+          </Button>
+          <Button icon={<ApartmentOutlined />} onClick={() => navigate('/departments')}>
+            部门
+          </Button>
+          <Button icon={<IdcardOutlined />} onClick={() => navigate('/positions')}>
+            岗位
+          </Button>
+          <Button icon={<MenuFoldOutlined />} onClick={() => navigate('/menus')}>
+            菜单
+          </Button>
         </div>
-      </div>
-      <div className="dashboard-grid">
-        <div className="dashboard-metric">
-          <TeamOutlined />
-          <span>启用用户</span>
-          <strong>{users.filter((item) => item.status === 'Enabled').length}</strong>
-        </div>
-        <div className="dashboard-metric">
-          <SafetyCertificateOutlined />
-          <span>启用角色</span>
-          <strong>{roles.filter((item) => item.status === 'Enabled').length}</strong>
-        </div>
-        <div className="dashboard-metric">
-          <MenuFoldOutlined />
-          <span>按钮权限</span>
-          <strong>{flatMenus.filter((item) => item.type === 'Button').length}</strong>
-        </div>
-      </div>
-      <div className="dashboard-body">
-        <div className="dashboard-panel dashboard-table">
+        <div className="dashboard-table">
           <div className="section-head">
             <h2>最近账号</h2>
-            <Button type="link" onClick={() => navigate('/users')}>
-              查看全部 <ArrowRightOutlined />
-            </Button>
+            <Button type="link" onClick={() => navigate('/users')}>查看全部 <ArrowRightOutlined /></Button>
           </div>
           <Table
             rowKey="id"
@@ -132,35 +132,6 @@ export default function DashboardPage() {
             pagination={false}
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无用户数据" /> }}
           />
-        </div>
-        <div className="dashboard-panel quick-panel">
-          <div className="section-head">
-            <h2>常用操作</h2>
-          </div>
-          <button type="button" className="quick-action" onClick={() => navigate('/users')}>
-            <TeamOutlined />
-            <span>
-              <strong>用户管理</strong>
-              <small>创建账号、分配角色、重置密码</small>
-            </span>
-            <ArrowRightOutlined />
-          </button>
-          <button type="button" className="quick-action" onClick={() => navigate('/roles')}>
-            <SafetyCertificateOutlined />
-            <span>
-              <strong>角色授权</strong>
-              <small>维护 RBAC 角色与菜单权限</small>
-            </span>
-            <ArrowRightOutlined />
-          </button>
-          <button type="button" className="quick-action" onClick={() => navigate('/menus')}>
-            <MenuFoldOutlined />
-            <span>
-              <strong>菜单权限</strong>
-              <small>配置导航、页面和按钮权限码</small>
-            </span>
-            <ArrowRightOutlined />
-          </button>
         </div>
       </div>
     </section>

@@ -1,5 +1,4 @@
 import {
-  AppstoreOutlined,
   IdcardOutlined,
   KeyOutlined,
   LockOutlined,
@@ -165,7 +164,6 @@ export default function MainLayout() {
           {!collapsed && (
             <span className="app-logo-text">
               <strong>sun-admin</strong>
-              <small>Access Console</small>
             </span>
           )}
         </div>
@@ -176,12 +174,6 @@ export default function MainLayout() {
           items={menuItems}
           onClick={({ key }) => navigate(String(key))}
         />
-        {!collapsed && (
-          <div className="app-sider-footer">
-            <span>当前角色</span>
-            <strong>{primaryRole}</strong>
-          </div>
-        )}
       </Sider>
       <Layout className="app-main">
         <Header className="app-header">
@@ -193,9 +185,6 @@ export default function MainLayout() {
               onClick={() => setCollapsed((value) => !value)}
             />
             <div className="header-title">
-              <Typography.Text type="secondary">
-                <AppstoreOutlined /> 控制台
-              </Typography.Text>
               <Typography.Title level={4}>
                 {staticRoutes.find((route) => route.path === activePath)?.title ??
                   '后台管理'}
