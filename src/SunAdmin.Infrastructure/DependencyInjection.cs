@@ -40,6 +40,10 @@ public static class DependencyInjection
         services.AddScoped<IMenuService, MenuService>();
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IPositionService, PositionService>();
+        services.AddScoped<ILogQueryService, LogQueryService>();
+        services.AddScoped<ISessionService, SessionService>();
+        services.AddScoped<ISettingService, SettingService>();
+        services.AddScoped<IDashboardService, DashboardService>();
 
         return services;
     }
@@ -51,6 +55,10 @@ public static class DependencyInjection
         freeSql.CodeFirst.ConfigEntity<Menu>(entity => entity.Property(x => x.Id).IsPrimary(true).IsIdentity(true));
         freeSql.CodeFirst.ConfigEntity<Department>(entity => entity.Property(x => x.Id).IsPrimary(true).IsIdentity(true));
         freeSql.CodeFirst.ConfigEntity<Position>(entity => entity.Property(x => x.Id).IsPrimary(true).IsIdentity(true));
+        freeSql.CodeFirst.ConfigEntity<OperationLog>(entity => entity.Property(x => x.Id).IsPrimary(true).IsIdentity(true));
+        freeSql.CodeFirst.ConfigEntity<LoginLog>(entity => entity.Property(x => x.Id).IsPrimary(true).IsIdentity(true));
+        freeSql.CodeFirst.ConfigEntity<LoginSession>(entity => entity.Property(x => x.Id).IsPrimary(true).IsIdentity(true));
+        freeSql.CodeFirst.ConfigEntity<SystemSetting>(entity => entity.Property(x => x.Id).IsPrimary(true).IsIdentity(true));
         freeSql.CodeFirst.ConfigEntity<UserRole>(entity => entity.Property(x => x.Id).IsPrimary(true).IsIdentity(true));
         freeSql.CodeFirst.ConfigEntity<RoleMenu>(entity => entity.Property(x => x.Id).IsPrimary(true).IsIdentity(true));
     }

@@ -42,7 +42,7 @@ public sealed class RoleService(IFreeSql freeSql) : IRoleService
             throw new BusinessException("CONFLICT", "Role code already exists.");
         }
 
-        var role = new Role { Code = request.Code, Name = request.Name, Description = request.Description };
+        var role = new Role { Code = request.Code, Name = request.Name, Description = request.Description, DataScope = request.DataScope };
         role.Id = await freeSql.Insert(role).ExecuteIdentityAsync(cancellationToken);
         return await ToDtoAsync(role, cancellationToken);
     }
@@ -50,8 +50,14 @@ public sealed class RoleService(IFreeSql freeSql) : IRoleService
     public async Task<RoleDto> UpdateAsync(long id, UpdateRoleRequest request, CancellationToken cancellationToken = default)
     {
         var role = await GetEntityAsync(id, cancellationToken);
+        if (role.IsBuiltIn && request.Status == SunAdmin.Domain.Enums.RecordStatus.Disabled)
+        {
+            throw new BusinessException("BUSINESS_ERROR", "Built-in role cannot be disabled.");
+        }
+
         role.Name = request.Name;
         role.Description = request.Description;
+        role.DataScope = request.DataScope;
         role.Status = request.Status;
         role.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<Role>().SetSource(role).ExecuteAffrowsAsync(cancellationToken);
@@ -96,6 +102,7 @@ public sealed class RoleService(IFreeSql freeSql) : IRoleService
         var menuIds = await freeSql.Select<RoleMenu>()
             .Where(x => x.RoleId == role.Id)
             .ToListAsync(x => x.MenuId, cancellationToken);
-        return new RoleDto(role.Id, role.Code, role.Name, role.Description, role.Status, role.IsBuiltIn, role.CreatedAt, menuIds);
+        var userCount = await freeSql.Select<UserRole>().Where(x => x.RoleId == role.Id).CountAsync(cancellationToken);
+        return new RoleDto(role.Id, role.Code, role.Name, role.Description, role.DataScope, role.Status, role.IsBuiltIn, (int)userCount, role.CreatedAt, menuIds);
     }
 }

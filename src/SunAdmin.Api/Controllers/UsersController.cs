@@ -64,6 +64,30 @@ public sealed class UsersController(IUserService userService) : ControllerBase
         return ApiResponse.Ok();
     }
 
+    [HttpPost("batch-enable")]
+    [RequirePermission(SystemPermissionCodes.UserUpdate)]
+    public async Task<ActionResult<ApiResponse>> BatchEnable(BatchUserRequest request, CancellationToken cancellationToken)
+    {
+        await userService.BatchEnableAsync(request, true, cancellationToken);
+        return ApiResponse.Ok();
+    }
+
+    [HttpPost("batch-disable")]
+    [RequirePermission(SystemPermissionCodes.UserUpdate)]
+    public async Task<ActionResult<ApiResponse>> BatchDisable(BatchUserRequest request, CancellationToken cancellationToken)
+    {
+        await userService.BatchEnableAsync(request, false, cancellationToken);
+        return ApiResponse.Ok();
+    }
+
+    [HttpPost("batch-delete")]
+    [RequirePermission(SystemPermissionCodes.UserDelete)]
+    public async Task<ActionResult<ApiResponse>> BatchDelete(BatchUserRequest request, CancellationToken cancellationToken)
+    {
+        await userService.BatchDeleteAsync(request, cancellationToken);
+        return ApiResponse.Ok();
+    }
+
     [HttpPost("{id:long}/reset-password")]
     [RequirePermission(SystemPermissionCodes.UserUpdate)]
     public async Task<ActionResult<ApiResponse>> ResetPassword(long id, ResetPasswordRequest request, CancellationToken cancellationToken)

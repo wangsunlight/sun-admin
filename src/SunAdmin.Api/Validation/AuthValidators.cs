@@ -20,3 +20,12 @@ public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePas
         RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8).MaximumLength(128);
     }
 }
+
+public sealed class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequest>
+{
+    public UpdateProfileRequestValidator()
+    {
+        RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(128);
+    }
+}

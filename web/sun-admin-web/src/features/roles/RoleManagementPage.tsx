@@ -29,6 +29,11 @@ import { flattenMenus, toTreeData } from '../../utils/menuTree';
 
 const defaultQuery: PageQuery = { pageIndex: 1, pageSize: 20 };
 
+const dataScopeLabels = {
+  All: '全部数据',
+  OwnDepartment: '本部门数据',
+};
+
 function formatDateTime(value?: string) {
   return value ? new Date(value).toLocaleString() : '-';
 }
@@ -86,7 +91,7 @@ export default function RoleManagementPage() {
   const openCreate = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ status: 'Enabled' });
+    form.setFieldsValue({ status: 'Enabled', dataScope: 'All' });
     setDrawerOpen(true);
   };
 
@@ -147,6 +152,13 @@ export default function RoleManagementPage() {
     { title: '角色名称', dataIndex: 'name', width: 180 },
     { title: '角色编码', dataIndex: 'code', width: 180 },
     { title: '描述', dataIndex: 'description', render: (value) => value || '-' },
+    {
+      title: '数据范围',
+      dataIndex: 'dataScope',
+      width: 120,
+      render: (value: keyof typeof dataScopeLabels) => dataScopeLabels[value] ?? value,
+    },
+    { title: '用户数', dataIndex: 'userCount', width: 90, render: (value) => value ?? 0 },
     {
       title: '权限数',
       dataIndex: 'menuIds',
@@ -221,7 +233,7 @@ export default function RoleManagementPage() {
         <div>
           <div className="page-kicker">
             <SafetyCertificateOutlined />
-            RBAC 权限
+            角色权限
           </div>
           <h1>角色管理</h1>
           <p>管理角色编码、启停状态和可访问菜单权限。</p>
@@ -296,6 +308,14 @@ export default function RoleManagementPage() {
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={3} placeholder="说明该角色的职责范围" />
           </Form.Item>
+          <Form.Item name="dataScope" label="数据范围" rules={[{ required: true, message: '请选择数据范围' }]}>
+            <Select
+              options={[
+                { label: '全部数据', value: 'All' },
+                { label: '本部门数据', value: 'OwnDepartment' },
+              ]}
+            />
+          </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
             <Select
               disabled={Boolean(editing?.isBuiltIn)}
@@ -318,6 +338,8 @@ export default function RoleManagementPage() {
             <Descriptions.Item label="角色名称">{detailTarget.name}</Descriptions.Item>
             <Descriptions.Item label="角色编码">{detailTarget.code}</Descriptions.Item>
             <Descriptions.Item label="描述">{detailTarget.description || '-'}</Descriptions.Item>
+            <Descriptions.Item label="数据范围">{dataScopeLabels[detailTarget.dataScope]}</Descriptions.Item>
+            <Descriptions.Item label="已分配用户">{detailTarget.userCount ?? 0}</Descriptions.Item>
             <Descriptions.Item label="状态">{detailTarget.status === 'Enabled' ? '启用' : '禁用'}</Descriptions.Item>
             <Descriptions.Item label="内置角色">{detailTarget.isBuiltIn ? '是' : '否'}</Descriptions.Item>
             <Descriptions.Item label="创建时间">{formatDateTime(detailTarget.createdAt)}</Descriptions.Item>

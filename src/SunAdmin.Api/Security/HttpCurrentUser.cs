@@ -16,6 +16,8 @@ public sealed class HttpCurrentUser(IHttpContextAccessor httpContextAccessor) : 
 
     public string? UserName => httpContextAccessor.HttpContext?.User.Identity?.Name;
 
+    public string? SessionId => httpContextAccessor.HttpContext?.User.FindFirstValue("sid");
+
     public IReadOnlyList<string> Roles => httpContextAccessor.HttpContext?.User.FindAll(ClaimTypes.Role).Select(x => x.Value).ToList() ?? [];
 
     public bool IsAuthenticated => httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated == true;

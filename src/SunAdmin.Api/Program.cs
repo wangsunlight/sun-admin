@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using FluentValidation;
@@ -11,6 +12,7 @@ using SunAdmin.Api.Security;
 using SunAdmin.Application.Abstractions;
 using SunAdmin.Application.Common;
 using SunAdmin.Contracts.Common;
+using SunAdmin.Domain.Entities;
 using SunAdmin.Infrastructure;
 using SunAdmin.Infrastructure.Options;
 
@@ -23,9 +25,13 @@ builder.Host.UseSerilog((context, configuration) =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+builder.Services.AddScoped<OperationLogActionFilter>();
 builder.Services.AddInfrastructure(builder.Configuration);
 
-builder.Services.AddControllers().AddJsonOptions(options =>
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<OperationLogActionFilter>();
+}).AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
@@ -47,6 +53,27 @@ builder.Services
             ValidIssuer = jwtOptions.Issuer,
             ValidAudience = jwtOptions.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret))
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var sessionId = context.Principal?.FindFirstValue("sid");
+                if (string.IsNullOrWhiteSpace(sessionId))
+                {
+                    context.Fail("Session is missing.");
+                    return;
+                }
+
+                var freeSql = context.HttpContext.RequestServices.GetRequiredService<IFreeSql>();
+                var session = await freeSql.Select<LoginSession>()
+                    .Where(x => x.SessionId == sessionId)
+                    .FirstAsync(context.HttpContext.RequestAborted);
+                if (session is null || session.RevokedAt is not null || session.ExpiresAt <= DateTime.UtcNow)
+                {
+                    context.Fail("Session is invalid.");
+                }
+            }
         };
     });
 

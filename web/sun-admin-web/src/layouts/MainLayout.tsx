@@ -23,12 +23,12 @@ import {
   Typography,
 } from 'antd';
 import type { MenuProps } from 'antd';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { defaultAuthedPath, staticRoutes } from '../routes/routeConfig';
 import { authService } from '../services/auth';
 import { useAuth } from '../stores/authStore';
-import type { ChangePasswordRequest, CurrentUser } from '../types/auth';
+import type { ChangePasswordRequest, CurrentUser, UpdateProfileRequest } from '../types/auth';
 import type { MenuItem } from '../types/menu';
 
 const { Header, Sider, Content } = Layout;
@@ -58,15 +58,18 @@ function collectVisiblePaths(menus: MenuItem[]) {
 export default function MainLayout() {
   const { message } = AntApp.useApp();
   const [passwordForm] = Form.useForm<ChangePasswordFormValues>();
+  const [profileForm] = Form.useForm<UpdateProfileRequest>();
   const [collapsed, setCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [profileUser, setProfileUser] = useState<CurrentUser | null>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, menus, refreshMe, user } = useAuth();
+  const forceChangePassword = Boolean(user?.mustChangePassword);
 
   const menuItems = useMemo<MenuProps['items']>(() => {
     const visiblePaths = collectVisiblePaths(menus);
@@ -97,8 +100,20 @@ export default function MainLayout() {
     try {
       const latestUser = await authService.me();
       setProfileUser(latestUser);
+      profileForm.setFieldsValue({
+        displayName: latestUser.displayName,
+        email: latestUser.email,
+        departmentId: latestUser.departmentId ?? null,
+        positionId: latestUser.positionId ?? null,
+      });
     } catch (error) {
       setProfileUser(user);
+      profileForm.setFieldsValue({
+        displayName: user?.displayName,
+        email: user?.email,
+        departmentId: user?.departmentId ?? null,
+        positionId: user?.positionId ?? null,
+      });
       message.error(error instanceof Error ? error.message : '个人资料加载失败');
     } finally {
       setProfileLoading(false);
@@ -108,6 +123,35 @@ export default function MainLayout() {
   const openPasswordModal = () => {
     passwordForm.resetFields();
     setPasswordOpen(true);
+  };
+
+  useEffect(() => {
+    if (forceChangePassword) {
+      passwordForm.resetFields();
+      setPasswordOpen(true);
+    }
+  }, [forceChangePassword, passwordForm]);
+
+  const handleUpdateProfile = async () => {
+    const values = await profileForm.validateFields();
+    const sourceUser = profileUser ?? user;
+    setProfileSubmitting(true);
+    try {
+      const updatedUser = await authService.updateProfile({
+        displayName: values.displayName,
+        email: values.email,
+        departmentId: sourceUser?.departmentId ?? null,
+        positionId: sourceUser?.positionId ?? null,
+      });
+      setProfileUser(updatedUser);
+      message.success('个人资料已更新');
+      setProfileOpen(false);
+      await refreshMe();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '个人资料保存失败');
+    } finally {
+      setProfileSubmitting(false);
+    }
   };
 
   const handleChangePassword = async () => {
@@ -154,7 +198,7 @@ export default function MainLayout() {
   ];
 
   const displayUser = profileUser ?? user;
-  const primaryRole = user?.roles?.[0] ?? 'member';
+  const primaryRole = user?.roles?.[0] ?? '成员';
 
   return (
     <Layout className="app-shell">
@@ -163,7 +207,7 @@ export default function MainLayout() {
           <span className="app-logo-mark">S</span>
           {!collapsed && (
             <span className="app-logo-text">
-              <strong>sun-admin</strong>
+              <strong>管理后台</strong>
             </span>
           )}
         </div>
@@ -211,9 +255,12 @@ export default function MainLayout() {
       <Modal
         title="个人资料"
         open={profileOpen}
-        footer={null}
+        okText="保存"
+        cancelText="取消"
         loading={profileLoading}
+        confirmLoading={profileSubmitting}
         onCancel={() => setProfileOpen(false)}
+        onOk={() => void handleUpdateProfile()}
       >
         {displayUser && (
           <div className="profile-modal">
@@ -226,13 +273,19 @@ export default function MainLayout() {
                 <Typography.Text type="secondary">{displayUser.userName}</Typography.Text>
               </div>
             </Space>
+            <Form form={profileForm} layout="vertical" requiredMark={false}>
+              <Form.Item name="displayName" label="显示名" rules={[{ required: true, message: '请输入显示名' }]}>
+                <Input placeholder="页面展示名称" />
+              </Form.Item>
+              <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email', message: '请输入正确邮箱' }]}>
+                <Input placeholder="user@example.com" />
+              </Form.Item>
+            </Form>
             <Descriptions column={1} size="middle" bordered>
               <Descriptions.Item label="用户 ID">{displayUser.id}</Descriptions.Item>
               <Descriptions.Item label="用户名">{displayUser.userName}</Descriptions.Item>
-              <Descriptions.Item label="显示名">
-                {displayUser.displayName || '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="邮箱">{displayUser.email || '-'}</Descriptions.Item>
+              <Descriptions.Item label="部门">{displayUser.departmentName || '-'}</Descriptions.Item>
+              <Descriptions.Item label="岗位">{displayUser.positionName || '-'}</Descriptions.Item>
               <Descriptions.Item label="角色">
                 {displayUser.roles.length ? (
                   <Space size={[4, 4]} wrap>
@@ -255,12 +308,19 @@ export default function MainLayout() {
       </Modal>
 
       <Modal
-        title="修改密码"
+        title={forceChangePassword ? '首次登录请修改密码' : '修改密码'}
         open={passwordOpen}
         okText="保存"
         cancelText="取消"
         confirmLoading={passwordSubmitting}
-        onCancel={() => setPasswordOpen(false)}
+        closable={!forceChangePassword}
+        maskClosable={!forceChangePassword}
+        cancelButtonProps={{ style: forceChangePassword ? { display: 'none' } : undefined }}
+        onCancel={() => {
+          if (!forceChangePassword) {
+            setPasswordOpen(false);
+          }
+        }}
         onOk={() => void handleChangePassword()}
       >
         <Form form={passwordForm} layout="vertical" requiredMark={false}>

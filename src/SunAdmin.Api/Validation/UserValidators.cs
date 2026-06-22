@@ -22,3 +22,12 @@ public sealed class UpdateUserRequestValidator : AbstractValidator<UpdateUserReq
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(128);
     }
 }
+
+public sealed class BatchUserRequestValidator : AbstractValidator<BatchUserRequest>
+{
+    public BatchUserRequestValidator()
+    {
+        RuleFor(x => x.UserIds).NotEmpty();
+        RuleForEach(x => x.UserIds).GreaterThan(0);
+    }
+}

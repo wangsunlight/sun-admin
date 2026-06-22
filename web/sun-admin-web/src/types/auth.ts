@@ -8,6 +8,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   accessToken: string;
   expiresAt?: string;
+  user?: CurrentUser;
 }
 
 export interface CurrentUser {
@@ -15,6 +16,11 @@ export interface CurrentUser {
   userName: string;
   displayName?: string;
   email?: string;
+  departmentId?: number | null;
+  departmentName?: string | null;
+  positionId?: number | null;
+  positionName?: string | null;
+  mustChangePassword?: boolean;
   roles: string[];
   permissions: string[];
   menus: MenuItem[];
@@ -23,4 +29,11 @@ export interface CurrentUser {
 export interface ChangePasswordRequest {
   oldPassword: string;
   newPassword: string;
+}
+
+export interface UpdateProfileRequest {
+  displayName: string;
+  email: string;
+  departmentId?: number | null;
+  positionId?: number | null;
 }

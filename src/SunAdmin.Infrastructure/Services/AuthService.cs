@@ -22,21 +22,51 @@ public sealed class AuthService(
 
         if (user is null || !passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
         {
+            await WriteLoginLogAsync(user, request.Account, false, "账号或密码错误。", cancellationToken);
             throw new BusinessException("UNAUTHORIZED", "Invalid account or password.");
         }
 
         if (user.Status != RecordStatus.Enabled)
         {
+            await WriteLoginLogAsync(user, request.Account, false, "账号已禁用。", cancellationToken);
             throw new BusinessException("FORBIDDEN", "User is disabled.");
         }
 
         var roles = await GetRoleCodesAsync(user.Id, cancellationToken);
-        var token = jwtTokenService.CreateToken(user, roles);
+        var sessionId = Guid.NewGuid().ToString("N");
+        var token = jwtTokenService.CreateToken(user, roles, sessionId);
+        await freeSql.Insert(new LoginSession
+        {
+            SessionId = sessionId,
+            UserId = user.Id,
+            UserName = user.UserName,
+            ExpiresAt = token.ExpiresAt
+        }).ExecuteAffrowsAsync(cancellationToken);
+
         user.LastLoginAt = DateTime.UtcNow;
         user.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
+        await WriteLoginLogAsync(user, request.Account, true, "登录成功。", cancellationToken);
 
         return new LoginResponse(token.AccessToken, token.ExpiresAt, await BuildCurrentUserAsync(user, roles, cancellationToken));
+    }
+
+    public async Task LogoutAsync(CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(currentUser.SessionId))
+        {
+            return;
+        }
+
+        var session = await freeSql.Select<LoginSession>().Where(x => x.SessionId == currentUser.SessionId).FirstAsync(cancellationToken);
+        if (session is null || session.RevokedAt is not null)
+        {
+            return;
+        }
+
+        session.RevokedAt = DateTime.UtcNow;
+        session.UpdatedAt = DateTime.UtcNow;
+        await freeSql.Update<LoginSession>().SetSource(session).ExecuteAffrowsAsync(cancellationToken);
     }
 
     public async Task<CurrentUserDto> GetCurrentUserAsync(CancellationToken cancellationToken = default)
@@ -44,6 +74,27 @@ public sealed class AuthService(
         var userId = currentUser.UserId ?? throw new BusinessException("UNAUTHORIZED", "User is not authenticated.");
         var user = await freeSql.Select<User>().Where(x => x.Id == userId && x.DeletedAt == null).FirstAsync(cancellationToken)
             ?? throw new BusinessException("UNAUTHORIZED", "User does not exist.");
+        var roles = await GetRoleCodesAsync(user.Id, cancellationToken);
+        return await BuildCurrentUserAsync(user, roles, cancellationToken);
+    }
+
+    public async Task<CurrentUserDto> UpdateProfileAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        var userId = currentUser.UserId ?? throw new BusinessException("UNAUTHORIZED", "User is not authenticated.");
+        var user = await freeSql.Select<User>().Where(x => x.Id == userId && x.DeletedAt == null).FirstAsync(cancellationToken)
+            ?? throw new BusinessException("NOT_FOUND", "User not found.");
+
+        if (await freeSql.Select<User>().Where(x => x.DeletedAt == null && x.Id != userId && x.Email == request.Email).AnyAsync(cancellationToken))
+        {
+            throw new BusinessException("CONFLICT", "Email already exists.");
+        }
+
+        user.DisplayName = request.DisplayName;
+        user.Email = request.Email;
+        user.DepartmentId = request.DepartmentId;
+        user.PositionId = request.PositionId;
+        user.UpdatedAt = DateTime.UtcNow;
+        await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
         var roles = await GetRoleCodesAsync(user.Id, cancellationToken);
         return await BuildCurrentUserAsync(user, roles, cancellationToken);
     }
@@ -59,12 +110,19 @@ public sealed class AuthService(
         }
 
         user.PasswordHash = passwordHasher.HashPassword(request.NewPassword);
+        user.MustChangePassword = false;
         user.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
     }
 
     private async Task<CurrentUserDto> BuildCurrentUserAsync(User user, IReadOnlyList<string> roles, CancellationToken cancellationToken)
     {
+        var department = user.DepartmentId.HasValue
+            ? await freeSql.Select<Department>().Where(x => x.Id == user.DepartmentId.Value && x.DeletedAt == null).FirstAsync(cancellationToken)
+            : null;
+        var position = user.PositionId.HasValue
+            ? await freeSql.Select<Position>().Where(x => x.Id == user.PositionId.Value && x.DeletedAt == null).FirstAsync(cancellationToken)
+            : null;
         var menus = await GetUserMenusAsync(user.Id, roles.Contains(SystemRoleCodes.SuperAdmin), cancellationToken);
         var permissions = menus
             .Where(x => !string.IsNullOrWhiteSpace(x.PermissionCode))
@@ -73,7 +131,19 @@ public sealed class AuthService(
             .OrderBy(x => x)
             .ToList();
 
-        return new CurrentUserDto(user.Id, user.UserName, user.DisplayName, user.Email, roles, permissions, MenuTreeBuilder.Build(menus));
+        return new CurrentUserDto(
+            user.Id,
+            user.UserName,
+            user.DisplayName,
+            user.Email,
+            user.DepartmentId,
+            department?.Name,
+            user.PositionId,
+            position?.Name,
+            user.MustChangePassword,
+            roles,
+            permissions,
+            MenuTreeBuilder.Build(menus));
     }
 
     private async Task<IReadOnlyList<string>> GetRoleCodesAsync(long userId, CancellationToken cancellationToken)
@@ -105,5 +175,17 @@ public sealed class AuthService(
                 menu.Status == RecordStatus.Enabled &&
                 menu.DeletedAt == null)
             .ToListAsync((userRole, role, roleMenu, menu) => menu, cancellationToken);
+    }
+
+    private async Task WriteLoginLogAsync(User? user, string account, bool succeeded, string message, CancellationToken cancellationToken)
+    {
+        await freeSql.Insert(new LoginLog
+        {
+            UserId = user?.Id,
+            Account = account,
+            UserName = user?.UserName,
+            Succeeded = succeeded,
+            Message = message
+        }).ExecuteAffrowsAsync(cancellationToken);
     }
 }

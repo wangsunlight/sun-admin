@@ -1,9 +1,12 @@
 import {
   ApartmentOutlined,
   DashboardOutlined,
+  FileSearchOutlined,
   IdcardOutlined,
   MenuFoldOutlined,
   SafetyCertificateOutlined,
+  SettingOutlined,
+  ThunderboltOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
@@ -13,6 +16,9 @@ import PositionManagementPage from '../features/positions/PositionManagementPage
 import UserManagementPage from '../features/users/UserManagementPage';
 import RoleManagementPage from '../features/roles/RoleManagementPage';
 import MenuManagementPage from '../features/menus/MenuManagementPage';
+import LogManagementPage from '../features/logs/LogManagementPage';
+import SessionManagementPage from '../features/sessions/SessionManagementPage';
+import SettingManagementPage from '../features/settings/SettingManagementPage';
 
 export interface StaticRouteItem {
   path: string;
@@ -57,6 +63,24 @@ export const staticRoutes: StaticRouteItem[] = [
     title: '菜单管理',
     element: <MenuManagementPage />,
     icon: <MenuFoldOutlined />,
+  },
+  {
+    path: '/logs',
+    title: '日志审计',
+    element: <LogManagementPage />,
+    icon: <FileSearchOutlined />,
+  },
+  {
+    path: '/sessions',
+    title: '在线会话',
+    element: <SessionManagementPage />,
+    icon: <ThunderboltOutlined />,
+  },
+  {
+    path: '/settings',
+    title: '系统配置',
+    element: <SettingManagementPage />,
+    icon: <SettingOutlined />,
   },
 ];
 

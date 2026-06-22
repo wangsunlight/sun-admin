@@ -11,15 +11,17 @@ namespace SunAdmin.Infrastructure.Security;
 
 public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
 {
-    public JwtTokenResult CreateToken(User user, IReadOnlyList<string> roleCodes)
+    public JwtTokenResult CreateToken(User user, IReadOnlyList<string> roleCodes, string sessionId)
     {
         var jwt = options.Value;
         var expiresAt = DateTime.UtcNow.AddMinutes(jwt.AccessTokenMinutes);
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Jti, sessionId),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.UserName),
+            new("sid", sessionId),
             new("display_name", user.DisplayName)
         };
         claims.AddRange(roleCodes.Select(role => new Claim(ClaimTypes.Role, role)));
@@ -27,6 +29,6 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Secret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(jwt.Issuer, jwt.Audience, claims, expires: expiresAt, signingCredentials: credentials);
-        return new JwtTokenResult(new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
+        return new JwtTokenResult(new JwtSecurityTokenHandler().WriteToken(token), expiresAt, sessionId);
     }
 }

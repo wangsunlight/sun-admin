@@ -19,10 +19,10 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
 
     [Authorize]
     [HttpPost("logout")]
-    public Task<ActionResult<ApiResponse>> Logout(CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse>> Logout(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult<ActionResult<ApiResponse>>(ApiResponse.Ok());
+        await authService.LogoutAsync(cancellationToken);
+        return ApiResponse.Ok();
     }
 
     [Authorize]
@@ -30,6 +30,13 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
     public async Task<ActionResult<ApiResponse<CurrentUserDto>>> Me(CancellationToken cancellationToken)
     {
         return ApiResponse<CurrentUserDto>.Ok(await authService.GetCurrentUserAsync(cancellationToken));
+    }
+
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<ActionResult<ApiResponse<CurrentUserDto>>> UpdateProfile(UpdateProfileRequest request, CancellationToken cancellationToken)
+    {
+        return ApiResponse<CurrentUserDto>.Ok(await authService.UpdateProfileAsync(request, cancellationToken));
     }
 
     [Authorize]

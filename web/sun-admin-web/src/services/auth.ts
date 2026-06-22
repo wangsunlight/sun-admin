@@ -4,6 +4,7 @@ import type {
   CurrentUser,
   LoginRequest,
   LoginResponse,
+  UpdateProfileRequest,
 } from '../types/auth';
 
 export const authService = {
@@ -18,5 +19,8 @@ export const authService = {
   },
   changePassword(payload: ChangePasswordRequest) {
     return request.post<void, void>('/api/auth/change-password', payload);
+  },
+  updateProfile(payload: UpdateProfileRequest) {
+    return request.put<CurrentUser, CurrentUser>('/api/auth/profile', payload);
   },
 };

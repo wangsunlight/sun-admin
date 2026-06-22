@@ -77,6 +77,8 @@ public sealed class PermissionAuthorizationTests
             "new-user",
             "New User",
             "new-user@sun-admin.local",
+            null,
+            null,
             "Admin@123456",
             []));
         var roleResponse = await client.PostAsJsonAsync("/api/roles", new CreateRoleRequest(
@@ -183,7 +185,7 @@ public sealed class PermissionAuthorizationTests
 
     private sealed class TestUserService : IUserService
     {
-        private static readonly UserDto User = new(2, "reader", "Reader", "reader@sun-admin.local", RecordStatus.Enabled, false, DateTime.UtcNow, null, []);
+        private static readonly UserDto User = new(2, "reader", "Reader", "reader@sun-admin.local", null, null, null, null, RecordStatus.Enabled, false, false, DateTime.UtcNow, null, []);
 
         public Task<PagedResult<UserDto>> GetPageAsync(UserQuery query, CancellationToken cancellationToken = default)
         {
@@ -211,11 +213,15 @@ public sealed class PermissionAuthorizationTests
         public Task ResetPasswordAsync(long id, ResetPasswordRequest request, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task AssignRolesAsync(long id, AssignUserRolesRequest request, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task BatchEnableAsync(BatchUserRequest request, bool enabled, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task BatchDeleteAsync(BatchUserRequest request, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class TestRoleService : IRoleService
     {
-        private static readonly RoleDto Role = new(1, "readonly_admin", "Readonly Administrator", null, RecordStatus.Enabled, true, DateTime.UtcNow, []);
+        private static readonly RoleDto Role = new(1, "readonly_admin", "Readonly Administrator", null, RoleDataScope.All, RecordStatus.Enabled, true, 0, DateTime.UtcNow, []);
 
         public Task<PagedResult<RoleDto>> GetPageAsync(RoleQuery query, CancellationToken cancellationToken = default)
         {

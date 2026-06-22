@@ -33,6 +33,8 @@ pnpm-debug.log*
 
 # Logs
 logs/
+!web/sun-admin-web/src/features/logs/
+!web/sun-admin-web/src/features/logs/**
 *.log
 *.log.*
 

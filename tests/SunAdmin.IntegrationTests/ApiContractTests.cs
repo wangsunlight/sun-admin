@@ -21,8 +21,10 @@ public sealed class ApiContractTests
             Code: "admin",
             Name: "Administrator",
             Description: null,
+            DataScope: RoleDataScope.All,
             Status: RecordStatus.Enabled,
             IsBuiltIn: true,
+            UserCount: 0,
             CreatedAt: new DateTime(2026, 6, 22, 8, 0, 0, DateTimeKind.Utc),
             MenuIds: [1, 2, 3]);
 

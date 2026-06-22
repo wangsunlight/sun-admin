@@ -41,15 +41,15 @@ export default function LoginPage() {
     <div className="login-page">
       <section className="login-shell">
         <div className="login-copy">
-          <div className="brand-mark">SA</div>
+          <div className="brand-mark">管</div>
           <Typography.Title level={1} className="login-title">
-            sun-admin
+            管理后台
           </Typography.Title>
           <p className="login-subtitle">轻量级后台管理系统</p>
           <div className="login-feature-list">
             <span>
               <SafetyCertificateOutlined />
-              RBAC 权限闭环
+              角色权限闭环
             </span>
             <span>
               <UserOutlined />
@@ -57,7 +57,7 @@ export default function LoginPage() {
             </span>
             <span>
               <ApiOutlined />
-              MySQL + .NET API
+              接口与数据服务
             </span>
           </div>
         </div>

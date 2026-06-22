@@ -11,11 +11,22 @@ public sealed record LoginResponse(
 
 public sealed record ChangePasswordRequest(string OldPassword, string NewPassword);
 
+public sealed record UpdateProfileRequest(
+    string DisplayName,
+    string Email,
+    long? DepartmentId,
+    long? PositionId);
+
 public sealed record CurrentUserDto(
     long Id,
     string UserName,
     string DisplayName,
     string Email,
+    long? DepartmentId,
+    string? DepartmentName,
+    long? PositionId,
+    string? PositionName,
+    bool MustChangePassword,
     IReadOnlyList<string> Roles,
     IReadOnlyList<string> Permissions,
     IReadOnlyList<MenuTreeNodeDto> Menus);

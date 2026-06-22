@@ -1,128 +1,153 @@
 # sun-admin
 
-sun-admin is a lightweight, reusable admin system template based on .NET 8 and React. The MVP focuses on authentication, RBAC, user management, role management, menu management, API permission checks, and a deployable local development baseline.
+`sun-admin` 是一个基于 .NET 8、React、MySQL 的轻量级后台管理系统，适合作为中小型管理后台的基础模板。项目已经包含登录认证、RBAC 权限、用户/角色/菜单、部门/岗位、日志审计、在线会话和系统配置等常用能力。
 
-## Tech Stack
+## 功能清单
 
-Backend:
+- 登录、退出、当前用户信息、修改密码、重置密码后强制改密
+- 用户管理：分页、搜索、状态/角色/部门/岗位筛选、部门岗位绑定、角色分配、批量启用/禁用/删除
+- 角色管理：角色编码、状态、菜单授权、数据范围、已分配用户数
+- 菜单管理：目录、页面、按钮权限码管理；前端仅限制菜单显示，接口权限由后端控制
+- 部门管理：树形组织、负责人、联系方式、启停状态
+- 岗位管理：岗位编码、说明、排序、启停状态
+- 日志审计：操作日志、登录日志
+- 在线会话：查看有效会话、强制下线
+- 系统配置：密码策略、系统名称等基础配置
+- 仪表盘：用户、角色、组织、菜单、今日操作和失败登录概览
+
+## 技术栈
+
+后端：
 
 - .NET 8 + ASP.NET Core Web API
-- C# 12 with nullable reference types
 - FreeSql + MySQL
 - JWT Bearer Authentication
-- Custom permission authorization policy
+- 自定义权限策略和 `RequirePermission`
 - FluentValidation
 - Serilog
-- Swagger or Scalar
-- xUnit + WebApplicationFactory + Testcontainers MySQL
+- xUnit + WebApplicationFactory
 
-Frontend:
+前端：
 
 - React + TypeScript + Vite
 - Ant Design
 - React Router
-- TanStack Query or ahooks
 - Axios
 
-Deployment:
+部署：
 
 - Docker
 - Docker Compose
+- Nginx
 - MySQL
 
-## Quick Start
-
-The repository is expected to use this structure:
+## 项目结构
 
 ```text
-src/
-  SunAdmin.Api/
-  SunAdmin.Application/
-  SunAdmin.Contracts/
-  SunAdmin.Domain/
-  SunAdmin.Infrastructure/
-tests/
-  SunAdmin.UnitTests/
-  SunAdmin.IntegrationTests/
-web/
-  sun-admin-web/
-docs/
+.
+├── src/
+│   ├── SunAdmin.Api/             控制器、认证、权限、异常处理、日志过滤器
+│   ├── SunAdmin.Application/     应用接口、菜单树构建、通用异常
+│   ├── SunAdmin.Contracts/       请求和响应 DTO
+│   ├── SunAdmin.Domain/          实体、枚举、权限常量
+│   └── SunAdmin.Infrastructure/  FreeSql、服务实现、种子数据、JWT
+├── tests/
+│   ├── SunAdmin.UnitTests/
+│   └── SunAdmin.IntegrationTests/
+├── web/sun-admin-web/            React 管理端
+├── docs/                         需求、开发、部署和接口文档
+├── docker-compose.yml
+└── .env.example
 ```
 
-1. Copy environment variables:
+## 本地启动
+
+1. 复制环境变量：
 
 ```bash
 cp .env.example .env
 ```
 
-2. Review `.env` and set strong local secrets, especially `JWT_SECRET` and `SEED_ADMIN_PASSWORD`.
+2. 修改 `.env` 中的敏感配置，至少需要替换：
 
-3. Start the full stack:
+- `Jwt__Secret`
+- `Seed__AdminPassword`
+- MySQL 相关密码
+
+3. 启动完整环境：
 
 ```bash
 docker compose up --build
 ```
 
-Expected local endpoints:
+默认访问地址：
 
-- API: `http://localhost:5000`
-- API health: `http://localhost:5000/health`
-- API readiness: `http://localhost:5000/health/ready`
-- Web: `http://localhost:5173`
-- MySQL: `localhost:3306`
+- 前端：`http://localhost:5173`
+- API：`http://localhost:5000`
+- 健康检查：`http://localhost:5000/health`
+- MySQL：`localhost:3306`
 
-The Web container serves the Vite build through nginx and proxies `/api` to the API container.
+前端容器使用 Nginx 托管 Vite 构建产物，并将 `/api` 代理到后端 API 容器。
 
-## Default Account
+## 默认账号
 
-Initial administrator values are configured through environment variables:
+初始化管理员由 `.env` 控制，示例值如下：
 
-- Username: `admin`
-- Email: `admin@sun-admin.local`
-- Password: `ChangeMe_123456`
+- 用户名：`admin`
+- 邮箱：`admin@sun-admin.local`
+- 密码：`ChangeMe_123456`
 
-Change the default password before using any shared or production-like environment.
+首次部署到共享或生产环境前必须修改默认密码。
 
-## Built-in Roles And RBAC Check
+## 权限说明
 
-Seed initialization creates these built-in roles:
+系统使用 RBAC：
 
-- `super_admin`: full backend API access through the server-side super administrator bypass.
-- `readonly_admin`: example role with read-only access to users, roles, and menus.
-- `user_admin`: example role with user management permissions only.
+- `super_admin`：内置超级管理员，后端接口拥有全部权限
+- `readonly_admin`：示例只读角色，可查看基础数据
+- `user_admin`：示例用户管理员，可维护用户、部门、岗位
 
-No extra default normal user is created. To verify RBAC from a fresh environment:
+前端只根据后端返回的菜单控制左侧菜单显示；页面路由不做强限制。真正的安全边界在后端接口权限校验，未授权接口会返回 403。
 
-1. Login with the seeded administrator account and change its password.
-2. Create a temporary test user.
-3. Assign `readonly_admin`, then verify user/role/menu list APIs work while create/update/delete APIs return 403.
-4. Assign `user_admin`, then verify user management APIs work while role and menu write APIs return 403.
-5. Assign `super_admin`, then verify protected user, role, and menu APIs are allowed.
+常用权限码包括：
 
-Permission codes used by the backend are `user:view`, `user:create`, `user:update`, `user:delete`, `role:view`, `role:create`, `role:update`, `role:delete`, `menu:view`, `menu:create`, `menu:update`, and `menu:delete`.
+- 用户：`user:view`、`user:create`、`user:update`、`user:delete`
+- 角色：`role:view`、`role:create`、`role:update`、`role:delete`
+- 菜单：`menu:view`、`menu:create`、`menu:update`、`menu:delete`
+- 部门：`department:view`、`department:create`、`department:update`、`department:delete`
+- 岗位：`position:view`、`position:create`、`position:update`、`position:delete`
+- 日志：`operation-log:view`、`login-log:view`
+- 会话：`session:view`、`session:revoke`
+- 配置：`setting:view`、`setting:update`
 
-The frontend only limits menu and button visibility. It does not enforce page access. Backend API authorization is the final permission boundary.
+## 常用命令
 
-## Directory Overview
+后端构建和测试：
 
-```text
-.
-├── docs/                         Documentation
-├── src/                          Backend solution and projects
-│   ├── SunAdmin.Api/             Controllers, middleware, auth, OpenAPI
-│   ├── SunAdmin.Application/     Use cases, validators, application services
-│   ├── SunAdmin.Contracts/       Request/response DTOs and shared API models
-│   ├── SunAdmin.Domain/          Entities, enums, domain constants and rules
-│   └── SunAdmin.Infrastructure/  FreeSql, repositories, seed data, JWT, logging
-├── tests/                        Unit and integration tests
-├── web/sun-admin-web/            React admin frontend
-├── docker-compose.yml            Local full-stack orchestration
-└── .env.example                  Environment variable template
+```bash
+dotnet build SunAdmin.slnx
+dotnet test SunAdmin.slnx
 ```
 
-## Documentation
+前端构建：
 
-- [Technical solution](docs/technical-solution.md)
-- [Development guide](docs/development.md)
-- [Deployment guide](docs/deployment.md)
-- [API draft](docs/api.md)
+```bash
+cd web/sun-admin-web
+npm install
+npm run build
+```
+
+Docker 部署：
+
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose logs -f api
+```
+
+## 文档
+
+- [技术方案](docs/technical-solution.md)
+- [开发说明](docs/development.md)
+- [部署说明](docs/deployment.md)
+- [接口草案](docs/api.md)

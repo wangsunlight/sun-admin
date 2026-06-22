@@ -2,21 +2,61 @@ using SunAdmin.Application.Abstractions;
 using SunAdmin.Application.Common;
 using SunAdmin.Contracts.Common;
 using SunAdmin.Contracts.Users;
+using SunAdmin.Domain.Constants;
 using SunAdmin.Domain.Entities;
 using SunAdmin.Domain.Enums;
 
 namespace SunAdmin.Infrastructure.Services;
 
-public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher) : IUserService
+public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher, ICurrentUser currentUser) : IUserService
 {
     public async Task<PagedResult<UserDto>> GetPageAsync(UserQuery query, CancellationToken cancellationToken = default)
     {
         var pageIndex = Math.Max(query.PageIndex, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var selector = freeSql.Select<User>().Where(x => x.DeletedAt == null);
+        var scopedDepartmentId = await GetScopedDepartmentIdAsync(cancellationToken);
+        if (scopedDepartmentId.HasValue)
+        {
+            selector = selector.Where(x => x.DepartmentId == scopedDepartmentId.Value);
+        }
+
         if (!string.IsNullOrWhiteSpace(query.Keyword))
         {
             selector = selector.Where(x => x.UserName.Contains(query.Keyword) || x.DisplayName.Contains(query.Keyword) || x.Email.Contains(query.Keyword));
+        }
+
+        if (query.Status.HasValue)
+        {
+            selector = selector.Where(x => x.Status == query.Status.Value);
+        }
+
+        if (query.DepartmentId.HasValue)
+        {
+            selector = selector.Where(x => x.DepartmentId == query.DepartmentId.Value);
+        }
+
+        if (query.PositionId.HasValue)
+        {
+            selector = selector.Where(x => x.PositionId == query.PositionId.Value);
+        }
+
+        if (query.CreatedFrom.HasValue)
+        {
+            selector = selector.Where(x => x.CreatedAt >= query.CreatedFrom.Value);
+        }
+
+        if (query.CreatedTo.HasValue)
+        {
+            selector = selector.Where(x => x.CreatedAt <= query.CreatedTo.Value);
+        }
+
+        if (query.RoleId.HasValue)
+        {
+            var roleUserIds = await freeSql.Select<UserRole>()
+                .Where(x => x.RoleId == query.RoleId.Value)
+                .ToListAsync(x => x.UserId, cancellationToken);
+            selector = selector.Where(x => roleUserIds.Contains(x.Id));
         }
 
         var total = await selector.CountAsync(cancellationToken);
@@ -48,6 +88,8 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
             UserName = request.UserName,
             DisplayName = request.DisplayName,
             Email = request.Email,
+            DepartmentId = request.DepartmentId,
+            PositionId = request.PositionId,
             PasswordHash = passwordHasher.HashPassword(request.Password)
         };
         user.Id = await freeSql.Insert(user).ExecuteIdentityAsync(cancellationToken);
@@ -70,6 +112,8 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
 
         user.DisplayName = request.DisplayName;
         user.Email = request.Email;
+        user.DepartmentId = request.DepartmentId;
+        user.PositionId = request.PositionId;
         user.Status = request.Status;
         user.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
@@ -105,6 +149,7 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
     {
         var user = await GetEntityAsync(id, cancellationToken);
         user.PasswordHash = passwordHasher.HashPassword(request.NewPassword);
+        user.MustChangePassword = true;
         user.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
     }
@@ -112,6 +157,22 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
     public Task AssignRolesAsync(long id, AssignUserRolesRequest request, CancellationToken cancellationToken = default)
     {
         return ReplaceRolesAsync(id, request.RoleIds, cancellationToken);
+    }
+
+    public async Task BatchEnableAsync(BatchUserRequest request, bool enabled, CancellationToken cancellationToken = default)
+    {
+        foreach (var userId in request.UserIds.Distinct())
+        {
+            await SetEnabledAsync(userId, enabled, cancellationToken);
+        }
+    }
+
+    public async Task BatchDeleteAsync(BatchUserRequest request, CancellationToken cancellationToken = default)
+    {
+        foreach (var userId in request.UserIds.Distinct())
+        {
+            await DeleteAsync(userId, cancellationToken);
+        }
     }
 
     private async Task<User> GetEntityAsync(long id, CancellationToken cancellationToken)
@@ -135,6 +196,48 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
             .InnerJoin((userRole, role) => userRole.RoleId == role.Id)
             .Where((userRole, role) => userRole.UserId == user.Id && role.DeletedAt == null)
             .ToListAsync((userRole, role) => role.Code, cancellationToken);
-        return new UserDto(user.Id, user.UserName, user.DisplayName, user.Email, user.Status, user.IsBuiltIn, user.CreatedAt, user.LastLoginAt, roles);
+        var department = user.DepartmentId.HasValue
+            ? await freeSql.Select<Department>().Where(x => x.Id == user.DepartmentId.Value && x.DeletedAt == null).FirstAsync(cancellationToken)
+            : null;
+        var position = user.PositionId.HasValue
+            ? await freeSql.Select<Position>().Where(x => x.Id == user.PositionId.Value && x.DeletedAt == null).FirstAsync(cancellationToken)
+            : null;
+
+        return new UserDto(
+            user.Id,
+            user.UserName,
+            user.DisplayName,
+            user.Email,
+            user.DepartmentId,
+            department?.Name,
+            user.PositionId,
+            position?.Name,
+            user.Status,
+            user.IsBuiltIn,
+            user.MustChangePassword,
+            user.CreatedAt,
+            user.LastLoginAt,
+            roles);
+    }
+
+    private async Task<long?> GetScopedDepartmentIdAsync(CancellationToken cancellationToken)
+    {
+        if (!currentUser.IsAuthenticated || currentUser.UserId is null || currentUser.Roles.Contains(SystemRoleCodes.SuperAdmin))
+        {
+            return null;
+        }
+
+        var scopes = await freeSql.Select<UserRole, Role>()
+            .InnerJoin((userRole, role) => userRole.RoleId == role.Id)
+            .Where((userRole, role) => userRole.UserId == currentUser.UserId.Value && role.DeletedAt == null && role.Status == RecordStatus.Enabled)
+            .ToListAsync((userRole, role) => role.DataScope, cancellationToken);
+
+        if (!scopes.Contains(RoleDataScope.OwnDepartment))
+        {
+            return null;
+        }
+
+        var user = await freeSql.Select<User>().Where(x => x.Id == currentUser.UserId.Value && x.DeletedAt == null).FirstAsync(cancellationToken);
+        return user?.DepartmentId ?? 0;
     }
 }

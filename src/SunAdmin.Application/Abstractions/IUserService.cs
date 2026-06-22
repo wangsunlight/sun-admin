@@ -13,4 +13,6 @@ public interface IUserService
     Task SetEnabledAsync(long id, bool enabled, CancellationToken cancellationToken = default);
     Task ResetPasswordAsync(long id, ResetPasswordRequest request, CancellationToken cancellationToken = default);
     Task AssignRolesAsync(long id, AssignUserRolesRequest request, CancellationToken cancellationToken = default);
+    Task BatchEnableAsync(BatchUserRequest request, bool enabled, CancellationToken cancellationToken = default);
+    Task BatchDeleteAsync(BatchUserRequest request, CancellationToken cancellationToken = default);
 }

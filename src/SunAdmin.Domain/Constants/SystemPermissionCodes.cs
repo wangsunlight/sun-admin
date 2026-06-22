@@ -22,4 +22,10 @@ public static class SystemPermissionCodes
     public const string PositionCreate = "position:create";
     public const string PositionUpdate = "position:update";
     public const string PositionDelete = "position:delete";
+    public const string OperationLogView = "operation-log:view";
+    public const string LoginLogView = "login-log:view";
+    public const string SessionView = "session:view";
+    public const string SessionRevoke = "session:revoke";
+    public const string SettingView = "setting:view";
+    public const string SettingUpdate = "setting:update";
 }
