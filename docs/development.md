@@ -132,6 +132,24 @@ Button permissions should use permission codes such as:
 
 Frontend checks are for visibility and ergonomics only. They hide menus and buttons, but they must not be treated as access control for pages or APIs. Backend `[RequirePermission]` checks are the final RBAC boundary.
 
+### Adding Frontend Pages
+
+Add new management pages through the static route registry:
+
+1. Create the page under `web/sun-admin-web/src/features/<module>/`.
+2. Add a lazy entry in `web/sun-admin-web/src/routes/routeConfig.tsx`.
+3. Set `path`, `title`, `icon`, and `permissionCode`.
+4. Add or seed the matching backend menu and permission code when the page is ready for normal users.
+
+The route layer accepts access from either the returned menu tree or the route `permissionCode`. This keeps local development practical while the menu seed data is still being updated. APIs still require backend `[RequirePermission]` attributes.
+
+Shared route behavior lives in:
+
+- `src/routes/routeAccess.ts`: menu path access helpers.
+- `src/routes/AppRoutes.tsx`: authentication, page access checks, lazy loading, and 403 handling.
+- `src/components/AppErrorBoundary.tsx`: page render failure fallback.
+- `src/components/RouteFallback.tsx`: route loading state.
+
 ## RBAC Verification
 
 Use this flow after `docker compose up --build`:

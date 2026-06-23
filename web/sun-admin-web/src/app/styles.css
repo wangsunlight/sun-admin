@@ -224,6 +224,27 @@ select {
   padding: 16px;
 }
 
+.route-fallback,
+.route-error {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+}
+
+.route-error {
+  padding: 20px;
+}
+
+.app-content .ant-result {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
 .page-surface {
   overflow: hidden;
   background: #ffffff;

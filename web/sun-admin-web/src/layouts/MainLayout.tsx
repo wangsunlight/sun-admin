@@ -26,33 +26,15 @@ import type { MenuProps } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { defaultAuthedPath, staticRoutes } from '../routes/routeConfig';
+import { canAccessPath } from '../routes/routeAccess';
 import { authService } from '../services/auth';
 import { useAuth } from '../stores/authStore';
 import type { ChangePasswordRequest, CurrentUser, UpdateProfileRequest } from '../types/auth';
-import type { MenuItem } from '../types/menu';
 
 const { Header, Sider, Content } = Layout;
 
 interface ChangePasswordFormValues extends ChangePasswordRequest {
   confirmPassword: string;
-}
-
-function collectVisiblePaths(menus: MenuItem[]) {
-  const paths = new Set<string>();
-
-  const walk = (items: MenuItem[]) => {
-    items.forEach((item) => {
-      if (item.status === 'Enabled' && item.type === 'Page' && item.routePath) {
-        paths.add(item.routePath);
-      }
-      if (item.children?.length) {
-        walk(item.children);
-      }
-    });
-  };
-
-  walk(menus);
-  return paths;
 }
 
 export default function MainLayout() {
@@ -68,22 +50,23 @@ export default function MainLayout() {
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, menus, refreshMe, user } = useAuth();
+  const { hasPermission, logout, menus, refreshMe, user } = useAuth();
   const forceChangePassword = Boolean(user?.mustChangePassword);
+  const knownPaths = useMemo(() => staticRoutes.map((route) => route.path), []);
 
   const menuItems = useMemo<MenuProps['items']>(() => {
-    const visiblePaths = collectVisiblePaths(menus);
-    const hasMatchedRoute = staticRoutes.some((route) => visiblePaths.has(route.path));
-    const allowAll = visiblePaths.size === 0 || !hasMatchedRoute;
-
     return staticRoutes
-      .filter((route) => allowAll || visiblePaths.has(route.path))
+      .filter(
+        (route) =>
+          canAccessPath(route.path, menus, knownPaths) ||
+          Boolean(route.permissionCode && hasPermission(route.permissionCode)),
+      )
       .map((route) => ({
         key: route.path,
         icon: route.icon,
         label: route.title,
       }));
-  }, [menus]);
+  }, [hasPermission, knownPaths, menus]);
 
   const activePath = staticRoutes.find((route) =>
     location.pathname.startsWith(route.path),

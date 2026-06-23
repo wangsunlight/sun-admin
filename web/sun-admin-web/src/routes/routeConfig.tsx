@@ -9,22 +9,32 @@ import {
   ThunderboltOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
-import type { ReactNode } from 'react';
-import DashboardPage from '../features/dashboard/DashboardPage';
-import DepartmentManagementPage from '../features/departments/DepartmentManagementPage';
-import PositionManagementPage from '../features/positions/PositionManagementPage';
-import UserManagementPage from '../features/users/UserManagementPage';
-import RoleManagementPage from '../features/roles/RoleManagementPage';
-import MenuManagementPage from '../features/menus/MenuManagementPage';
-import LogManagementPage from '../features/logs/LogManagementPage';
-import SessionManagementPage from '../features/sessions/SessionManagementPage';
-import SettingManagementPage from '../features/settings/SettingManagementPage';
+import { lazy, type ReactNode } from 'react';
+
+const DashboardPage = lazy(() => import('../features/dashboard/DashboardPage'));
+const DepartmentManagementPage = lazy(
+  () => import('../features/departments/DepartmentManagementPage'),
+);
+const PositionManagementPage = lazy(
+  () => import('../features/positions/PositionManagementPage'),
+);
+const UserManagementPage = lazy(() => import('../features/users/UserManagementPage'));
+const RoleManagementPage = lazy(() => import('../features/roles/RoleManagementPage'));
+const MenuManagementPage = lazy(() => import('../features/menus/MenuManagementPage'));
+const LogManagementPage = lazy(() => import('../features/logs/LogManagementPage'));
+const SessionManagementPage = lazy(
+  () => import('../features/sessions/SessionManagementPage'),
+);
+const SettingManagementPage = lazy(
+  () => import('../features/settings/SettingManagementPage'),
+);
 
 export interface StaticRouteItem {
   path: string;
   title: string;
   element: ReactNode;
   icon?: ReactNode;
+  permissionCode?: string;
 }
 
 export const staticRoutes: StaticRouteItem[] = [
@@ -39,48 +49,56 @@ export const staticRoutes: StaticRouteItem[] = [
     title: '用户管理',
     element: <UserManagementPage />,
     icon: <TeamOutlined />,
+    permissionCode: 'user:view',
   },
   {
     path: '/roles',
     title: '角色管理',
     element: <RoleManagementPage />,
     icon: <SafetyCertificateOutlined />,
+    permissionCode: 'role:view',
   },
   {
     path: '/departments',
     title: '部门管理',
     element: <DepartmentManagementPage />,
     icon: <ApartmentOutlined />,
+    permissionCode: 'department:view',
   },
   {
     path: '/positions',
     title: '岗位管理',
     element: <PositionManagementPage />,
     icon: <IdcardOutlined />,
+    permissionCode: 'position:view',
   },
   {
     path: '/menus',
     title: '菜单管理',
     element: <MenuManagementPage />,
     icon: <MenuFoldOutlined />,
+    permissionCode: 'menu:view',
   },
   {
     path: '/logs',
     title: '日志审计',
     element: <LogManagementPage />,
     icon: <FileSearchOutlined />,
+    permissionCode: 'operation-log:view',
   },
   {
     path: '/sessions',
     title: '在线会话',
     element: <SessionManagementPage />,
     icon: <ThunderboltOutlined />,
+    permissionCode: 'session:view',
   },
   {
     path: '/settings',
     title: '系统配置',
     element: <SettingManagementPage />,
     icon: <SettingOutlined />,
+    permissionCode: 'setting:view',
   },
 ];
 
