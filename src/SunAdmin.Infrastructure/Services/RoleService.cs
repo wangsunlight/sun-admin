@@ -6,7 +6,7 @@ using SunAdmin.Domain.Entities;
 
 namespace SunAdmin.Infrastructure.Services;
 
-public sealed class RoleService(IFreeSql freeSql) : IRoleService
+public sealed class RoleService(IFreeSql freeSql, IEntityAuditService auditService) : IRoleService
 {
     public async Task<PagedResult<RoleDto>> GetPageAsync(RoleQuery query, CancellationToken cancellationToken = default)
     {
@@ -44,12 +44,14 @@ public sealed class RoleService(IFreeSql freeSql) : IRoleService
 
         var role = new Role { Code = request.Code, Name = request.Name, Description = request.Description, DataScope = request.DataScope };
         role.Id = await freeSql.Insert(role).ExecuteIdentityAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(Role), role.Id.ToString(), "Create", null, role, cancellationToken);
         return await ToDtoAsync(role, cancellationToken);
     }
 
     public async Task<RoleDto> UpdateAsync(long id, UpdateRoleRequest request, CancellationToken cancellationToken = default)
     {
         var role = await GetEntityAsync(id, cancellationToken);
+        var before = Clone(role);
         if (role.IsBuiltIn && request.Status == SunAdmin.Domain.Enums.RecordStatus.Disabled)
         {
             throw new BusinessException("BUSINESS_ERROR", "Built-in role cannot be disabled.");
@@ -61,6 +63,7 @@ public sealed class RoleService(IFreeSql freeSql) : IRoleService
         role.Status = request.Status;
         role.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<Role>().SetSource(role).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(Role), role.Id.ToString(), "Update", before, role, cancellationToken);
         return await ToDtoAsync(role, cancellationToken);
     }
 
@@ -79,16 +82,28 @@ public sealed class RoleService(IFreeSql freeSql) : IRoleService
 
         role.DeletedAt = DateTime.UtcNow;
         await freeSql.Update<Role>().SetSource(role).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(Role), role.Id.ToString(), "Delete", role, null, cancellationToken);
     }
 
     public async Task AssignMenusAsync(long id, AssignRoleMenusRequest request, CancellationToken cancellationToken = default)
     {
         _ = await GetEntityAsync(id, cancellationToken);
-        await freeSql.Delete<RoleMenu>().Where(x => x.RoleId == id).ExecuteAffrowsAsync(cancellationToken);
-        if (request.MenuIds.Count > 0)
+        var targetMenuIds = request.MenuIds.Distinct().ToHashSet();
+        var current = await freeSql.Select<RoleMenu>().Where(x => x.RoleId == id).ToListAsync(cancellationToken);
+        var currentMenuIds = current.Select(x => x.MenuId).ToHashSet();
+        var idsToDelete = current.Where(x => !targetMenuIds.Contains(x.MenuId)).Select(x => x.Id).ToList();
+        if (idsToDelete.Count > 0)
         {
-            await freeSql.Insert(request.MenuIds.Distinct().Select(menuId => new RoleMenu { RoleId = id, MenuId = menuId })).ExecuteAffrowsAsync(cancellationToken);
+            await freeSql.Delete<RoleMenu>().Where(x => idsToDelete.Contains(x.Id)).ExecuteAffrowsAsync(cancellationToken);
         }
+
+        var idsToInsert = targetMenuIds.Except(currentMenuIds).ToList();
+        if (idsToInsert.Count > 0)
+        {
+            await freeSql.Insert(idsToInsert.Select(menuId => new RoleMenu { RoleId = id, MenuId = menuId })).ExecuteAffrowsAsync(cancellationToken);
+        }
+
+        await auditService.WriteAsync(nameof(RoleMenu), id.ToString(), "AssignMenus", null, new { RoleId = id, MenuIds = targetMenuIds }, cancellationToken);
     }
 
     private async Task<Role> GetEntityAsync(long id, CancellationToken cancellationToken)
@@ -104,5 +119,22 @@ public sealed class RoleService(IFreeSql freeSql) : IRoleService
             .ToListAsync(x => x.MenuId, cancellationToken);
         var userCount = await freeSql.Select<UserRole>().Where(x => x.RoleId == role.Id).CountAsync(cancellationToken);
         return new RoleDto(role.Id, role.Code, role.Name, role.Description, role.DataScope, role.Status, role.IsBuiltIn, (int)userCount, role.CreatedAt, menuIds);
+    }
+
+    private static Role Clone(Role value)
+    {
+        return new Role
+        {
+            Id = value.Id,
+            Code = value.Code,
+            Name = value.Name,
+            Description = value.Description,
+            DataScope = value.DataScope,
+            Status = value.Status,
+            IsBuiltIn = value.IsBuiltIn,
+            CreatedAt = value.CreatedAt,
+            UpdatedAt = value.UpdatedAt,
+            DeletedAt = value.DeletedAt
+        };
     }
 }

@@ -224,6 +224,23 @@ select {
   padding: 16px;
 }
 
+.app-tabs {
+  height: 42px;
+  padding: 6px 16px 0;
+  background: #ffffff;
+  border-bottom: 1px solid #dfe7ef;
+}
+
+.app-tabs .ant-tabs-nav {
+  margin: 0;
+}
+
+.app-tabs .ant-tabs-tab {
+  height: 30px;
+  padding: 5px 12px !important;
+  border-radius: 8px 8px 0 0 !important;
+}
+
 .route-fallback,
 .route-error {
   min-height: 260px;

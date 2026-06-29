@@ -5,6 +5,7 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -25,6 +26,7 @@ builder.Host.UseSerilog((context, configuration) =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+builder.Services.AddScoped<IRequestContext, HttpRequestContext>();
 builder.Services.AddScoped<OperationLogActionFilter>();
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -35,11 +37,24 @@ builder.Services.AddControllers(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(x => x.Value?.Errors.Count > 0)
+            .ToDictionary(
+                x => string.IsNullOrWhiteSpace(x.Key) ? "request" : x.Key,
+                x => x.Value!.Errors.Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage) ? "Invalid value." : error.ErrorMessage).ToArray());
+        return new BadRequestObjectResult(new { code = "VALIDATION_ERROR", message = "Validation failed.", errors });
+    };
+});
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddFluentValidationClientsideAdapters();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+ValidateProductionConfiguration(builder.Environment, builder.Configuration, jwtOptions);
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -150,5 +165,27 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+static void ValidateProductionConfiguration(IHostEnvironment environment, IConfiguration configuration, JwtOptions jwtOptions)
+{
+    if (!environment.IsProduction())
+    {
+        return;
+    }
+
+    if (string.IsNullOrWhiteSpace(jwtOptions.Secret) ||
+        jwtOptions.Secret.Length < 32 ||
+        jwtOptions.Secret.Contains("change-me", StringComparison.OrdinalIgnoreCase) ||
+        jwtOptions.Secret.Contains("replace-with", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException("Jwt:Secret must be a strong production value with at least 32 characters.");
+    }
+
+    var seed = configuration.GetSection("Seed").Get<SeedOptions>() ?? new SeedOptions();
+    if (seed.AdminPassword is "ChangeMe_123456" or "Admin@123456")
+    {
+        throw new InvalidOperationException("Seed:AdminPassword must be changed before running in Production.");
+    }
+}
 
 public partial class Program;

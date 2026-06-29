@@ -7,7 +7,7 @@ using SunAdmin.Domain.Enums;
 
 namespace SunAdmin.Infrastructure.Services;
 
-public sealed class PositionService(IFreeSql freeSql) : IPositionService
+public sealed class PositionService(IFreeSql freeSql, IEntityAuditService auditService) : IPositionService
 {
     public async Task<PagedResult<PositionDto>> GetPageAsync(PositionQuery query, CancellationToken cancellationToken = default)
     {
@@ -41,12 +41,14 @@ public sealed class PositionService(IFreeSql freeSql) : IPositionService
             SortOrder = request.SortOrder
         };
         position.Id = await freeSql.Insert(position).ExecuteIdentityAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(Position), position.Id.ToString(), "Create", null, position, cancellationToken);
         return ToDto(position);
     }
 
     public async Task<PositionDto> UpdateAsync(long id, UpdatePositionRequest request, CancellationToken cancellationToken = default)
     {
         var position = await GetEntityAsync(id, cancellationToken);
+        var before = Clone(position);
         if (position.IsBuiltIn && request.Status == RecordStatus.Disabled)
         {
             throw new BusinessException("BUSINESS_ERROR", "Built-in position cannot be disabled.");
@@ -60,6 +62,7 @@ public sealed class PositionService(IFreeSql freeSql) : IPositionService
         position.Status = request.Status;
         position.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<Position>().SetSource(position).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(Position), position.Id.ToString(), "Update", before, position, cancellationToken);
         return ToDto(position);
     }
 
@@ -73,6 +76,7 @@ public sealed class PositionService(IFreeSql freeSql) : IPositionService
 
         position.DeletedAt = DateTime.UtcNow;
         await freeSql.Update<Position>().SetSource(position).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(Position), position.Id.ToString(), "Delete", position, null, cancellationToken);
     }
 
     private async Task<Position> GetEntityAsync(long id, CancellationToken cancellationToken)
@@ -95,5 +99,22 @@ public sealed class PositionService(IFreeSql freeSql) : IPositionService
     private static PositionDto ToDto(Position position)
     {
         return new PositionDto(position.Id, position.Code, position.Name, position.Description, position.SortOrder, position.Status, position.IsBuiltIn, position.CreatedAt);
+    }
+
+    private static Position Clone(Position value)
+    {
+        return new Position
+        {
+            Id = value.Id,
+            Code = value.Code,
+            Name = value.Name,
+            Description = value.Description,
+            SortOrder = value.SortOrder,
+            Status = value.Status,
+            IsBuiltIn = value.IsBuiltIn,
+            CreatedAt = value.CreatedAt,
+            UpdatedAt = value.UpdatedAt,
+            DeletedAt = value.DeletedAt
+        };
     }
 }

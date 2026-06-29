@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { authService } from '../services/auth';
 import { unauthorizedEventName } from '../services/request';
-import { clearToken, getToken, setToken } from './tokenStorage';
+import { clearToken, getToken, setAuthTokens } from './tokenStorage';
 import type { CurrentUser, LoginRequest } from '../types/auth';
 
 interface AuthContextValue {
@@ -38,7 +38,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const login = useCallback(
     async (payload: LoginRequest) => {
       const result = await authService.login(payload);
-      setToken(result.accessToken);
+      setAuthTokens(result.accessToken, result.refreshToken);
       await refreshMe();
     },
     [refreshMe],

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using SunAdmin.Application.Abstractions;
+using SunAdmin.Application.Menus;
 using SunAdmin.Domain.Constants;
 using SunAdmin.Domain.Entities;
 using SunAdmin.Domain.Enums;
@@ -38,6 +39,13 @@ public sealed class DatabaseInitializer(
                 freeSql.CodeFirst.SyncStructure<SystemSetting>();
                 freeSql.CodeFirst.SyncStructure<UserRole>();
                 freeSql.CodeFirst.SyncStructure<RoleMenu>();
+                freeSql.CodeFirst.SyncStructure<DataDictionary>();
+                freeSql.CodeFirst.SyncStructure<DataDictionaryItem>();
+                freeSql.CodeFirst.SyncStructure<SystemNotification>();
+                freeSql.CodeFirst.SyncStructure<FileResource>();
+                freeSql.CodeFirst.SyncStructure<ExportTask>();
+                freeSql.CodeFirst.SyncStructure<CodeGenerationTemplate>();
+                freeSql.CodeFirst.SyncStructure<EntityChangeLog>();
             }, cancellationToken);
         }
 
@@ -82,6 +90,8 @@ public sealed class DatabaseInitializer(
         await EnsureDepartmentsAsync(cancellationToken);
         await EnsurePositionsAsync(cancellationToken);
         await EnsureSettingsAsync(cancellationToken);
+        await EnsureDictionariesAsync(cancellationToken);
+        await EnsureCodeGenerationTemplatesAsync(cancellationToken);
         var readonlyRole = await EnsureRoleAsync(
             ReadonlyAdminRoleCode,
             "只读管理员",
@@ -104,7 +114,9 @@ public sealed class DatabaseInitializer(
             menus.Where(x =>
                     x.Type is MenuType.Directory or MenuType.Page ||
                     x.PermissionCode is SystemPermissionCodes.UserView or SystemPermissionCodes.RoleView or SystemPermissionCodes.MenuView or SystemPermissionCodes.DepartmentView or SystemPermissionCodes.PositionView
-                        or SystemPermissionCodes.OperationLogView or SystemPermissionCodes.LoginLogView or SystemPermissionCodes.SessionView or SystemPermissionCodes.SettingView)
+                        or SystemPermissionCodes.OperationLogView or SystemPermissionCodes.LoginLogView or SystemPermissionCodes.SessionView or SystemPermissionCodes.SettingView
+                        or SystemPermissionCodes.DictionaryView or SystemPermissionCodes.NotificationView or SystemPermissionCodes.FileView or SystemPermissionCodes.ExportView
+                        or SystemPermissionCodes.CodeGenerationView or SystemPermissionCodes.EntityChangeLogView)
                 .Select(x => x.Id),
             cancellationToken);
         await EnsureRoleMenusAsync(
@@ -154,73 +166,27 @@ public sealed class DatabaseInitializer(
 
     private async Task<IReadOnlyList<Menu>> EnsureMenusAsync(CancellationToken cancellationToken)
     {
-        var definitions = new[]
-        {
-            new Menu { Name = "系统管理", Type = MenuType.Directory, SortOrder = 10, IsBuiltIn = true },
-            new Menu { Name = "工作台", Type = MenuType.Page, RoutePath = "/dashboard", Component = "dashboard/DashboardPage", SortOrder = 11, IsBuiltIn = true },
-            new Menu { Name = "用户管理", Type = MenuType.Page, RoutePath = "/users", Component = "users/UserManagementPage", SortOrder = 12, IsBuiltIn = true },
-            new Menu { Name = "角色管理", Type = MenuType.Page, RoutePath = "/roles", Component = "roles/RoleManagementPage", SortOrder = 13, IsBuiltIn = true },
-            new Menu { Name = "部门管理", Type = MenuType.Page, RoutePath = "/departments", Component = "departments/DepartmentManagementPage", SortOrder = 14, IsBuiltIn = true },
-            new Menu { Name = "岗位管理", Type = MenuType.Page, RoutePath = "/positions", Component = "positions/PositionManagementPage", SortOrder = 15, IsBuiltIn = true },
-            new Menu { Name = "菜单管理", Type = MenuType.Page, RoutePath = "/menus", Component = "menus/MenuManagementPage", SortOrder = 16, IsBuiltIn = true },
-            new Menu { Name = "日志审计", Type = MenuType.Page, RoutePath = "/logs", Component = "logs/LogManagementPage", SortOrder = 17, IsBuiltIn = true },
-            new Menu { Name = "在线会话", Type = MenuType.Page, RoutePath = "/sessions", Component = "sessions/SessionManagementPage", SortOrder = 18, IsBuiltIn = true },
-            new Menu { Name = "系统配置", Type = MenuType.Page, RoutePath = "/settings", Component = "settings/SettingManagementPage", SortOrder = 19, IsBuiltIn = true },
-            new Menu { Name = "查看用户", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.UserView, SortOrder = 101, IsBuiltIn = true },
-            new Menu { Name = "新建用户", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.UserCreate, SortOrder = 102, IsBuiltIn = true },
-            new Menu { Name = "编辑用户", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.UserUpdate, SortOrder = 103, IsBuiltIn = true },
-            new Menu { Name = "删除用户", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.UserDelete, SortOrder = 104, IsBuiltIn = true },
-            new Menu { Name = "查看角色", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.RoleView, SortOrder = 201, IsBuiltIn = true },
-            new Menu { Name = "新建角色", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.RoleCreate, SortOrder = 202, IsBuiltIn = true },
-            new Menu { Name = "编辑角色", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.RoleUpdate, SortOrder = 203, IsBuiltIn = true },
-            new Menu { Name = "删除角色", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.RoleDelete, SortOrder = 204, IsBuiltIn = true },
-            new Menu { Name = "查看菜单", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.MenuView, SortOrder = 301, IsBuiltIn = true },
-            new Menu { Name = "新建菜单", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.MenuCreate, SortOrder = 302, IsBuiltIn = true },
-            new Menu { Name = "编辑菜单", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.MenuUpdate, SortOrder = 303, IsBuiltIn = true },
-            new Menu { Name = "删除菜单", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.MenuDelete, SortOrder = 304, IsBuiltIn = true },
-            new Menu { Name = "查看部门", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.DepartmentView, SortOrder = 401, IsBuiltIn = true },
-            new Menu { Name = "新建部门", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.DepartmentCreate, SortOrder = 402, IsBuiltIn = true },
-            new Menu { Name = "编辑部门", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.DepartmentUpdate, SortOrder = 403, IsBuiltIn = true },
-            new Menu { Name = "删除部门", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.DepartmentDelete, SortOrder = 404, IsBuiltIn = true },
-            new Menu { Name = "查看岗位", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.PositionView, SortOrder = 501, IsBuiltIn = true },
-            new Menu { Name = "新建岗位", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.PositionCreate, SortOrder = 502, IsBuiltIn = true },
-            new Menu { Name = "编辑岗位", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.PositionUpdate, SortOrder = 503, IsBuiltIn = true },
-            new Menu { Name = "删除岗位", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.PositionDelete, SortOrder = 504, IsBuiltIn = true },
-            new Menu { Name = "查看操作日志", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.OperationLogView, SortOrder = 601, IsBuiltIn = true },
-            new Menu { Name = "查看登录日志", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.LoginLogView, SortOrder = 602, IsBuiltIn = true },
-            new Menu { Name = "查看会话", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.SessionView, SortOrder = 701, IsBuiltIn = true },
-            new Menu { Name = "强制下线", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.SessionRevoke, SortOrder = 702, IsBuiltIn = true },
-            new Menu { Name = "查看配置", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.SettingView, SortOrder = 801, IsBuiltIn = true },
-            new Menu { Name = "编辑配置", Type = MenuType.Button, PermissionCode = SystemPermissionCodes.SettingUpdate, SortOrder = 802, IsBuiltIn = true }
-        };
+        var savedByCode = new Dictionary<string, Menu>();
+        var saved = new List<Menu>();
 
-        var system = await EnsureMenuAsync(definitions[0], null, cancellationToken);
-        var dashboard = await EnsureMenuAsync(definitions[1], system.Id, cancellationToken);
-        var users = await EnsureMenuAsync(definitions[2], system.Id, cancellationToken);
-        var roles = await EnsureMenuAsync(definitions[3], system.Id, cancellationToken);
-        var departments = await EnsureMenuAsync(definitions[4], system.Id, cancellationToken);
-        var positions = await EnsureMenuAsync(definitions[5], system.Id, cancellationToken);
-        var menus = await EnsureMenuAsync(definitions[6], system.Id, cancellationToken);
-        var logs = await EnsureMenuAsync(definitions[7], system.Id, cancellationToken);
-        var sessions = await EnsureMenuAsync(definitions[8], system.Id, cancellationToken);
-        var settings = await EnsureMenuAsync(definitions[9], system.Id, cancellationToken);
-        var saved = new List<Menu> { system, dashboard, users, roles, departments, positions, menus, logs, sessions, settings };
-
-        foreach (var definition in definitions.Skip(10))
+        foreach (var descriptor in SystemPageRegistry.All)
         {
-            var parentId = definition.PermissionCode switch
+            long? parentId = descriptor.ParentCode is not null && savedByCode.TryGetValue(descriptor.ParentCode, out var parent)
+                ? parent.Id
+                : null;
+            var menu = await EnsureMenuAsync(new Menu
             {
-                SystemPermissionCodes.UserView or SystemPermissionCodes.UserCreate or SystemPermissionCodes.UserUpdate or SystemPermissionCodes.UserDelete => users.Id,
-                SystemPermissionCodes.RoleView or SystemPermissionCodes.RoleCreate or SystemPermissionCodes.RoleUpdate or SystemPermissionCodes.RoleDelete => roles.Id,
-                SystemPermissionCodes.MenuView or SystemPermissionCodes.MenuCreate or SystemPermissionCodes.MenuUpdate or SystemPermissionCodes.MenuDelete => menus.Id,
-                SystemPermissionCodes.DepartmentView or SystemPermissionCodes.DepartmentCreate or SystemPermissionCodes.DepartmentUpdate or SystemPermissionCodes.DepartmentDelete => departments.Id,
-                SystemPermissionCodes.PositionView or SystemPermissionCodes.PositionCreate or SystemPermissionCodes.PositionUpdate or SystemPermissionCodes.PositionDelete => positions.Id,
-                SystemPermissionCodes.OperationLogView or SystemPermissionCodes.LoginLogView => logs.Id,
-                SystemPermissionCodes.SessionView or SystemPermissionCodes.SessionRevoke => sessions.Id,
-                SystemPermissionCodes.SettingView or SystemPermissionCodes.SettingUpdate => settings.Id,
-                _ => system.Id
-            };
-            saved.Add(await EnsureMenuAsync(definition, parentId, cancellationToken));
+                Name = descriptor.Name,
+                Type = descriptor.Type,
+                RoutePath = descriptor.RoutePath,
+                Component = descriptor.Component,
+                Icon = descriptor.Icon,
+                PermissionCode = descriptor.PermissionCode,
+                SortOrder = descriptor.SortOrder,
+                IsBuiltIn = true
+            }, parentId, cancellationToken);
+            savedByCode[descriptor.Code] = menu;
+            saved.Add(menu);
         }
 
         return saved;
@@ -310,6 +276,34 @@ public sealed class DatabaseInitializer(
             },
             new SystemSetting
             {
+                Key = "security.password.requireDigit",
+                Name = "密码需要数字",
+                Value = "true",
+                Description = "新建、重置和修改密码时是否至少包含一个数字。"
+            },
+            new SystemSetting
+            {
+                Key = "security.password.requireUppercase",
+                Name = "密码需要大写字母",
+                Value = "true",
+                Description = "新建、重置和修改密码时是否至少包含一个大写字母。"
+            },
+            new SystemSetting
+            {
+                Key = "security.password.requireLowercase",
+                Name = "密码需要小写字母",
+                Value = "true",
+                Description = "新建、重置和修改密码时是否至少包含一个小写字母。"
+            },
+            new SystemSetting
+            {
+                Key = "security.password.requireNonAlphanumeric",
+                Name = "密码需要特殊字符",
+                Value = "false",
+                Description = "新建、重置和修改密码时是否至少包含一个非字母数字字符。"
+            },
+            new SystemSetting
+            {
                 Key = "security.password.forceChangeAfterReset",
                 Name = "重置后强制改密",
                 Value = "true",
@@ -338,6 +332,129 @@ public sealed class DatabaseInitializer(
 
             await freeSql.Insert(definition).ExecuteIdentityAsync(cancellationToken);
         }
+    }
+
+    private async Task EnsureDictionariesAsync(CancellationToken cancellationToken)
+    {
+        var status = await EnsureDictionaryAsync(new DataDictionary
+        {
+            Code = "record_status",
+            Name = "记录状态",
+            Description = "通用启用/禁用状态。",
+            IsBuiltIn = true
+        }, cancellationToken);
+        await EnsureDictionaryItemAsync(status.Id, new DataDictionaryItem { Label = "启用", Value = "Enabled", SortOrder = 1, IsBuiltIn = true }, cancellationToken);
+        await EnsureDictionaryItemAsync(status.Id, new DataDictionaryItem { Label = "禁用", Value = "Disabled", SortOrder = 2, IsBuiltIn = true }, cancellationToken);
+    }
+
+    private async Task<DataDictionary> EnsureDictionaryAsync(DataDictionary definition, CancellationToken cancellationToken)
+    {
+        var existing = await freeSql.Select<DataDictionary>().Where(x => x.Code == definition.Code).FirstAsync(cancellationToken);
+        if (existing is not null)
+        {
+            existing.Name = definition.Name;
+            existing.Description = definition.Description;
+            existing.IsBuiltIn = definition.IsBuiltIn;
+            existing.UpdatedAt = DateTime.UtcNow;
+            await freeSql.Update<DataDictionary>().SetSource(existing).ExecuteAffrowsAsync(cancellationToken);
+            return existing;
+        }
+
+        definition.Id = await freeSql.Insert(definition).ExecuteIdentityAsync(cancellationToken);
+        return definition;
+    }
+
+    private async Task EnsureDictionaryItemAsync(long dictionaryId, DataDictionaryItem definition, CancellationToken cancellationToken)
+    {
+        var existing = await freeSql.Select<DataDictionaryItem>().Where(x => x.DictionaryId == dictionaryId && x.Value == definition.Value).FirstAsync(cancellationToken);
+        if (existing is not null)
+        {
+            existing.Label = definition.Label;
+            existing.SortOrder = definition.SortOrder;
+            existing.IsBuiltIn = definition.IsBuiltIn;
+            existing.UpdatedAt = DateTime.UtcNow;
+            await freeSql.Update<DataDictionaryItem>().SetSource(existing).ExecuteAffrowsAsync(cancellationToken);
+            return;
+        }
+
+        definition.DictionaryId = dictionaryId;
+        await freeSql.Insert(definition).ExecuteIdentityAsync(cancellationToken);
+    }
+
+    private async Task EnsureCodeGenerationTemplatesAsync(CancellationToken cancellationToken)
+    {
+        await EnsureCodeGenerationTemplateAsync(new CodeGenerationTemplate
+        {
+            Name = "后端 DTO 模板",
+            TemplateKey = "backend.dto",
+            TargetKind = "backend",
+            Content = """
+                namespace {{Namespace}};
+
+                public sealed record {{EntityName}}Dto(
+                    long Id,
+                    string Name,
+                    string Status);
+
+                public sealed record Create{{EntityName}}Request(
+                    string Name);
+
+                public sealed record Update{{EntityName}}Request(
+                    string Name,
+                    string Status);
+                """,
+            IsBuiltIn = true
+        }, cancellationToken);
+        await EnsureCodeGenerationTemplateAsync(new CodeGenerationTemplate
+        {
+            Name = "前端列表页模板",
+            TemplateKey = "frontend.list",
+            TargetKind = "frontend",
+            Content = """
+                import { useEffect, useState } from 'react';
+                import { Table } from 'antd';
+
+                export default function {{EntityName}}ListPage() {
+                  const [items, setItems] = useState<{{EntityName}}Dto[]>([]);
+
+                  useEffect(() => {
+                    {{serviceName}}.list().then(setItems);
+                  }, []);
+
+                  return (
+                    <Table
+                      rowKey="id"
+                      dataSource={items}
+                      columns={[
+                        { title: '名称', dataIndex: 'name' },
+                        { title: '状态', dataIndex: 'status' },
+                      ]}
+                    />
+                  );
+                }
+                """,
+            IsBuiltIn = true
+        }, cancellationToken);
+    }
+
+    private async Task EnsureCodeGenerationTemplateAsync(CodeGenerationTemplate definition, CancellationToken cancellationToken)
+    {
+        var existing = await freeSql.Select<CodeGenerationTemplate>().Where(x => x.TemplateKey == definition.TemplateKey).FirstAsync(cancellationToken);
+        if (existing is not null)
+        {
+            existing.Name = definition.Name;
+            existing.TargetKind = definition.TargetKind;
+            if (string.IsNullOrWhiteSpace(existing.Content) || existing.Content.Contains("TODO", StringComparison.OrdinalIgnoreCase))
+            {
+                existing.Content = definition.Content;
+            }
+            existing.IsBuiltIn = definition.IsBuiltIn;
+            existing.UpdatedAt = DateTime.UtcNow;
+            await freeSql.Update<CodeGenerationTemplate>().SetSource(existing).ExecuteAffrowsAsync(cancellationToken);
+            return;
+        }
+
+        await freeSql.Insert(definition).ExecuteIdentityAsync(cancellationToken);
     }
 
     private async Task<Menu> EnsureMenuAsync(Menu definition, long? parentId, CancellationToken cancellationToken)

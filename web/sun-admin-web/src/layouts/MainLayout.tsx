@@ -19,6 +19,7 @@ import {
   Menu,
   Modal,
   Space,
+  Tabs,
   Tag,
   Typography,
 } from 'antd';
@@ -32,6 +33,7 @@ import { useAuth } from '../stores/authStore';
 import type { ChangePasswordRequest, CurrentUser, UpdateProfileRequest } from '../types/auth';
 
 const { Header, Sider, Content } = Layout;
+const TAB_STORAGE_KEY = 'sun_admin_open_tabs';
 
 interface ChangePasswordFormValues extends ChangePasswordRequest {
   confirmPassword: string;
@@ -42,6 +44,14 @@ export default function MainLayout() {
   const [passwordForm] = Form.useForm<ChangePasswordFormValues>();
   const [profileForm] = Form.useForm<UpdateProfileRequest>();
   const [collapsed, setCollapsed] = useState(false);
+  const [openTabs, setOpenTabs] = useState<string[]>(() => {
+    try {
+      const stored = window.localStorage.getItem(TAB_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [defaultAuthedPath];
+    } catch {
+      return [defaultAuthedPath];
+    }
+  });
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSubmitting, setProfileSubmitting] = useState(false);
@@ -72,8 +82,42 @@ export default function MainLayout() {
     location.pathname.startsWith(route.path),
   )?.path;
 
+  useEffect(() => {
+    if (!activePath) {
+      return;
+    }
+
+    setOpenTabs((tabs) => {
+      const nextTabs = tabs.includes(activePath) ? tabs : [...tabs, activePath];
+      window.localStorage.setItem(TAB_STORAGE_KEY, JSON.stringify(nextTabs));
+      return nextTabs;
+    });
+  }, [activePath]);
+
+  const tabItems = openTabs
+    .map((path) => staticRoutes.find((route) => route.path === path))
+    .filter((route): route is (typeof staticRoutes)[number] => Boolean(route))
+    .map((route) => ({
+      key: route.path,
+      label: route.title,
+      closable: route.path !== defaultAuthedPath,
+    }));
+
+  const closeTab = (targetKey: string) => {
+    setOpenTabs((tabs) => {
+      const nextTabs = tabs.filter((tab) => tab !== targetKey);
+      const normalizedTabs = nextTabs.length ? nextTabs : [defaultAuthedPath];
+      window.localStorage.setItem(TAB_STORAGE_KEY, JSON.stringify(normalizedTabs));
+      if (targetKey === activePath) {
+        navigate(normalizedTabs.at(-1) ?? defaultAuthedPath, { replace: true });
+      }
+      return normalizedTabs;
+    });
+  };
+
   const handleLogout = async () => {
     await logout();
+    window.localStorage.removeItem(TAB_STORAGE_KEY);
     navigate('/login', { replace: true });
   };
 
@@ -230,6 +274,19 @@ export default function MainLayout() {
             </Space>
           </Dropdown>
         </Header>
+        <Tabs
+          className="app-tabs"
+          type="editable-card"
+          hideAdd
+          activeKey={activePath ?? defaultAuthedPath}
+          items={tabItems}
+          onChange={(key) => navigate(key)}
+          onEdit={(targetKey, action) => {
+            if (action === 'remove') {
+              closeTab(String(targetKey));
+            }
+          }}
+        />
         <Content className="app-content">
           <Outlet />
         </Content>

@@ -17,11 +17,26 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
         return ApiResponse<LoginResponse>.Ok(await authService.LoginAsync(request, cancellationToken));
     }
 
+    [AllowAnonymous]
+    [HttpPost("refresh")]
+    public async Task<ActionResult<ApiResponse<LoginResponse>>> Refresh(RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        return ApiResponse<LoginResponse>.Ok(await authService.RefreshAsync(request, cancellationToken));
+    }
+
     [Authorize]
     [HttpPost("logout")]
     public async Task<ActionResult<ApiResponse>> Logout(CancellationToken cancellationToken)
     {
         await authService.LogoutAsync(cancellationToken);
+        return ApiResponse.Ok();
+    }
+
+    [Authorize]
+    [HttpPost("logout-all")]
+    public async Task<ActionResult<ApiResponse>> LogoutAll(CancellationToken cancellationToken)
+    {
+        await authService.LogoutAllAsync(cancellationToken);
         return ApiResponse.Ok();
     }
 

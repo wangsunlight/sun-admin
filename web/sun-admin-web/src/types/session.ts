@@ -12,5 +12,7 @@ export interface SessionItem {
   userAgent?: string | null;
   createdAt: string;
   expiresAt: string;
+  refreshTokenExpiresAt?: string | null;
+  lastSeenAt?: string | null;
   revokedAt?: string | null;
 }

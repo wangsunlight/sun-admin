@@ -14,4 +14,6 @@ public sealed record SessionDto(
     string? UserAgent,
     DateTime CreatedAt,
     DateTime ExpiresAt,
+    DateTime? RefreshTokenExpiresAt,
+    DateTime? LastSeenAt,
     DateTime? RevokedAt);

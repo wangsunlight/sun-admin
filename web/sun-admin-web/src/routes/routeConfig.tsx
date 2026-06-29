@@ -1,7 +1,13 @@
 import {
   ApartmentOutlined,
+  BellOutlined,
+  CodeOutlined,
   DashboardOutlined,
+  DatabaseOutlined,
+  DownloadOutlined,
   FileSearchOutlined,
+  FileTextOutlined,
+  FolderOpenOutlined,
   IdcardOutlined,
   MenuFoldOutlined,
   SafetyCertificateOutlined,
@@ -27,6 +33,20 @@ const SessionManagementPage = lazy(
 );
 const SettingManagementPage = lazy(
   () => import('../features/settings/SettingManagementPage'),
+);
+const DictionaryManagementPage = lazy(
+  () => import('../features/platform/DictionaryManagementPage'),
+);
+const NotificationManagementPage = lazy(
+  () => import('../features/platform/NotificationManagementPage'),
+);
+const FileResourcePage = lazy(() => import('../features/platform/FileResourcePage'));
+const ExportTaskPage = lazy(() => import('../features/platform/ExportTaskPage'));
+const CodeGenerationPage = lazy(
+  () => import('../features/platform/CodeGenerationPage'),
+);
+const EntityChangeLogPage = lazy(
+  () => import('../features/platform/EntityChangeLogPage'),
 );
 
 export interface StaticRouteItem {
@@ -99,6 +119,48 @@ export const staticRoutes: StaticRouteItem[] = [
     element: <SettingManagementPage />,
     icon: <SettingOutlined />,
     permissionCode: 'setting:view',
+  },
+  {
+    path: '/dictionaries',
+    title: '数据字典',
+    element: <DictionaryManagementPage />,
+    icon: <DatabaseOutlined />,
+    permissionCode: 'dictionary:view',
+  },
+  {
+    path: '/notifications',
+    title: '通知公告',
+    element: <NotificationManagementPage />,
+    icon: <BellOutlined />,
+    permissionCode: 'notification:view',
+  },
+  {
+    path: '/files',
+    title: '文件资源',
+    element: <FileResourcePage />,
+    icon: <FolderOpenOutlined />,
+    permissionCode: 'file:view',
+  },
+  {
+    path: '/exports',
+    title: '导出中心',
+    element: <ExportTaskPage />,
+    icon: <DownloadOutlined />,
+    permissionCode: 'export:view',
+  },
+  {
+    path: '/code-generation',
+    title: '代码生成',
+    element: <CodeGenerationPage />,
+    icon: <CodeOutlined />,
+    permissionCode: 'code-generation:view',
+  },
+  {
+    path: '/entity-change-logs',
+    title: '变更审计',
+    element: <EntityChangeLogPage />,
+    icon: <FileTextOutlined />,
+    permissionCode: 'entity-change-log:view',
   },
 ];
 

@@ -28,4 +28,19 @@ public static class SystemPermissionCodes
     public const string SessionRevoke = "session:revoke";
     public const string SettingView = "setting:view";
     public const string SettingUpdate = "setting:update";
+    public const string DictionaryView = "dictionary:view";
+    public const string DictionaryCreate = "dictionary:create";
+    public const string DictionaryUpdate = "dictionary:update";
+    public const string DictionaryDelete = "dictionary:delete";
+    public const string NotificationView = "notification:view";
+    public const string NotificationCreate = "notification:create";
+    public const string NotificationUpdate = "notification:update";
+    public const string FileView = "file:view";
+    public const string FileCreate = "file:create";
+    public const string FileDelete = "file:delete";
+    public const string ExportView = "export:view";
+    public const string ExportCreate = "export:create";
+    public const string CodeGenerationView = "code-generation:view";
+    public const string CodeGenerationCreate = "code-generation:create";
+    public const string EntityChangeLogView = "entity-change-log:view";
 }

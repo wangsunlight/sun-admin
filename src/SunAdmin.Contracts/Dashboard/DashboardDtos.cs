@@ -11,5 +11,8 @@ public sealed record DashboardStatsDto(
     long MenuCount,
     long OperationCountToday,
     long FailedLoginCountToday,
+    long ApiErrorCountToday,
+    long ActiveSessionCount,
+    long PendingExportCount,
     IReadOnlyList<OperationLogDto> RecentOperations,
     IReadOnlyList<LoginLogDto> RecentLogins);

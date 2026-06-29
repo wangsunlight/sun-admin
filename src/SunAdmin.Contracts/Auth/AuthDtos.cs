@@ -6,8 +6,11 @@ public sealed record LoginRequest(string Account, string Password);
 
 public sealed record LoginResponse(
     string AccessToken,
+    string RefreshToken,
     DateTime ExpiresAt,
     CurrentUserDto User);
+
+public sealed record RefreshTokenRequest(string RefreshToken);
 
 public sealed record ChangePasswordRequest(string OldPassword, string NewPassword);
 

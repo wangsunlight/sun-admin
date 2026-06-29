@@ -7,8 +7,13 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   accessToken: string;
+  refreshToken: string;
   expiresAt?: string;
   user?: CurrentUser;
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
 }
 
 export interface CurrentUser {

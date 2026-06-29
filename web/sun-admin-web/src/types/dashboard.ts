@@ -9,6 +9,9 @@ export interface DashboardStats {
   menuCount: number;
   operationCountToday: number;
   failedLoginCountToday: number;
+  apiErrorCountToday: number;
+  activeSessionCount: number;
+  pendingExportCount: number;
   recentOperations: OperationLogItem[];
   recentLogins: LoginLogItem[];
 }

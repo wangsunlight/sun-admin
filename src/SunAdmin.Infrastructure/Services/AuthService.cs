@@ -11,9 +11,13 @@ namespace SunAdmin.Infrastructure.Services;
 public sealed class AuthService(
     IFreeSql freeSql,
     ICurrentUser currentUser,
+    IRequestContext requestContext,
     IPasswordHasher passwordHasher,
-    IJwtTokenService jwtTokenService) : IAuthService
+    IJwtTokenService jwtTokenService,
+    IPasswordPolicyService passwordPolicyService) : IAuthService
 {
+    private const int RefreshTokenDays = 7;
+
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
         var user = await freeSql.Select<User>()
@@ -35,12 +39,18 @@ public sealed class AuthService(
         var roles = await GetRoleCodesAsync(user.Id, cancellationToken);
         var sessionId = Guid.NewGuid().ToString("N");
         var token = jwtTokenService.CreateToken(user, roles, sessionId);
+        var refreshToken = CreateRefreshToken(sessionId);
         await freeSql.Insert(new LoginSession
         {
             SessionId = sessionId,
             UserId = user.Id,
             UserName = user.UserName,
-            ExpiresAt = token.ExpiresAt
+            IpAddress = requestContext.IpAddress,
+            UserAgent = requestContext.UserAgent,
+            ExpiresAt = token.ExpiresAt,
+            RefreshTokenHash = passwordHasher.HashPassword(refreshToken),
+            RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenDays),
+            LastSeenAt = DateTime.UtcNow
         }).ExecuteAffrowsAsync(cancellationToken);
 
         user.LastLoginAt = DateTime.UtcNow;
@@ -48,7 +58,40 @@ public sealed class AuthService(
         await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
         await WriteLoginLogAsync(user, request.Account, true, "登录成功。", cancellationToken);
 
-        return new LoginResponse(token.AccessToken, token.ExpiresAt, await BuildCurrentUserAsync(user, roles, cancellationToken));
+        return new LoginResponse(token.AccessToken, refreshToken, token.ExpiresAt, await BuildCurrentUserAsync(user, roles, cancellationToken));
+    }
+
+    public async Task<LoginResponse> RefreshAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
+    {
+        var sessionId = ResolveSessionId(request.RefreshToken);
+        var session = await freeSql.Select<LoginSession>().Where(x => x.SessionId == sessionId).FirstAsync(cancellationToken)
+            ?? throw new BusinessException("UNAUTHORIZED", "Refresh token is invalid.");
+        if (session.RevokedAt is not null ||
+            session.RefreshTokenExpiresAt is null ||
+            session.RefreshTokenExpiresAt <= DateTime.UtcNow ||
+            string.IsNullOrWhiteSpace(session.RefreshTokenHash) ||
+            !passwordHasher.VerifyPassword(request.RefreshToken, session.RefreshTokenHash))
+        {
+            throw new BusinessException("UNAUTHORIZED", "Refresh token is invalid.");
+        }
+
+        var user = await freeSql.Select<User>().Where(x => x.Id == session.UserId && x.DeletedAt == null).FirstAsync(cancellationToken)
+            ?? throw new BusinessException("UNAUTHORIZED", "User does not exist.");
+        if (user.Status != RecordStatus.Enabled)
+        {
+            throw new BusinessException("FORBIDDEN", "User is disabled.");
+        }
+
+        var roles = await GetRoleCodesAsync(user.Id, cancellationToken);
+        var token = jwtTokenService.CreateToken(user, roles, session.SessionId);
+        var refreshToken = CreateRefreshToken(session.SessionId);
+        session.ExpiresAt = token.ExpiresAt;
+        session.RefreshTokenHash = passwordHasher.HashPassword(refreshToken);
+        session.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenDays);
+        session.LastSeenAt = DateTime.UtcNow;
+        session.UpdatedAt = DateTime.UtcNow;
+        await freeSql.Update<LoginSession>().SetSource(session).ExecuteAffrowsAsync(cancellationToken);
+        return new LoginResponse(token.AccessToken, refreshToken, token.ExpiresAt, await BuildCurrentUserAsync(user, roles, cancellationToken));
     }
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
@@ -65,8 +108,33 @@ public sealed class AuthService(
         }
 
         session.RevokedAt = DateTime.UtcNow;
+        session.RevokedReason = "logout";
         session.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<LoginSession>().SetSource(session).ExecuteAffrowsAsync(cancellationToken);
+    }
+
+    public async Task LogoutAllAsync(CancellationToken cancellationToken = default)
+    {
+        var userId = currentUser.UserId;
+        if (!userId.HasValue)
+        {
+            return;
+        }
+
+        var sessions = await freeSql.Select<LoginSession>()
+            .Where(x => x.UserId == userId.Value && x.RevokedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var session in sessions)
+        {
+            session.RevokedAt = DateTime.UtcNow;
+            session.RevokedReason = "logout_all";
+            session.UpdatedAt = DateTime.UtcNow;
+        }
+
+        if (sessions.Count > 0)
+        {
+            await freeSql.Update<LoginSession>().SetSource(sessions).ExecuteAffrowsAsync(cancellationToken);
+        }
     }
 
     public async Task<CurrentUserDto> GetCurrentUserAsync(CancellationToken cancellationToken = default)
@@ -109,6 +177,7 @@ public sealed class AuthService(
             throw new BusinessException("BUSINESS_ERROR", "Old password is incorrect.");
         }
 
+        passwordPolicyService.Validate(request.NewPassword);
         user.PasswordHash = passwordHasher.HashPassword(request.NewPassword);
         user.MustChangePassword = false;
         user.UpdatedAt = DateTime.UtcNow;
@@ -185,7 +254,25 @@ public sealed class AuthService(
             Account = account,
             UserName = user?.UserName,
             Succeeded = succeeded,
-            Message = message
+            Message = message,
+            IpAddress = requestContext.IpAddress,
+            UserAgent = requestContext.UserAgent
         }).ExecuteAffrowsAsync(cancellationToken);
+    }
+
+    private static string CreateRefreshToken(string sessionId)
+    {
+        return $"{sessionId}.{Convert.ToBase64String(Guid.NewGuid().ToByteArray()).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
+    }
+
+    private static string ResolveSessionId(string refreshToken)
+    {
+        var dotIndex = refreshToken.IndexOf('.', StringComparison.Ordinal);
+        if (dotIndex <= 0)
+        {
+            throw new BusinessException("UNAUTHORIZED", "Refresh token is invalid.");
+        }
+
+        return refreshToken[..dotIndex];
     }
 }

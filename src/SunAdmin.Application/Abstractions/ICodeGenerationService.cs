@@ -1,0 +1,10 @@
+using SunAdmin.Contracts.CodeGeneration;
+using SunAdmin.Contracts.Common;
+
+namespace SunAdmin.Application.Abstractions;
+
+public interface ICodeGenerationService
+{
+    Task<PagedResult<CodeGenerationTemplateDto>> GetTemplatesAsync(CodeGenerationTemplateQuery query, CancellationToken cancellationToken = default);
+    Task<CodeGenerationTemplateDto> CreateTemplateAsync(CreateCodeGenerationTemplateRequest request, CancellationToken cancellationToken = default);
+}

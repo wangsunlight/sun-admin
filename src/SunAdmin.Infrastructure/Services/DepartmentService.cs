@@ -6,7 +6,7 @@ using SunAdmin.Domain.Enums;
 
 namespace SunAdmin.Infrastructure.Services;
 
-public sealed class DepartmentService(IFreeSql freeSql) : IDepartmentService
+public sealed class DepartmentService(IFreeSql freeSql, IEntityAuditService auditService) : IDepartmentService
 {
     public async Task<IReadOnlyList<DepartmentDto>> GetTreeAsync(CancellationToken cancellationToken = default)
     {
@@ -38,12 +38,14 @@ public sealed class DepartmentService(IFreeSql freeSql) : IDepartmentService
             SortOrder = request.SortOrder
         };
         department.Id = await freeSql.Insert(department).ExecuteIdentityAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(Department), department.Id.ToString(), "Create", null, department, cancellationToken);
         return ToDto(department, []);
     }
 
     public async Task<DepartmentDto> UpdateAsync(long id, UpdateDepartmentRequest request, CancellationToken cancellationToken = default)
     {
         var department = await GetEntityAsync(id, cancellationToken);
+        var before = Clone(department);
         if (department.IsBuiltIn && request.Status == RecordStatus.Disabled)
         {
             throw new BusinessException("BUSINESS_ERROR", "Built-in department cannot be disabled.");
@@ -56,6 +58,7 @@ public sealed class DepartmentService(IFreeSql freeSql) : IDepartmentService
 
         await EnsureCodeAvailableAsync(request.Code, id, cancellationToken);
         await EnsureParentExistsAsync(request.ParentId, cancellationToken);
+        await EnsureParentIsNotDescendantAsync(id, request.ParentId, cancellationToken);
         department.ParentId = request.ParentId;
         department.Code = request.Code;
         department.Name = request.Name;
@@ -66,6 +69,7 @@ public sealed class DepartmentService(IFreeSql freeSql) : IDepartmentService
         department.Status = request.Status;
         department.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<Department>().SetSource(department).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(Department), department.Id.ToString(), "Update", before, department, cancellationToken);
         return ToDto(department, []);
     }
 
@@ -84,6 +88,7 @@ public sealed class DepartmentService(IFreeSql freeSql) : IDepartmentService
 
         department.DeletedAt = DateTime.UtcNow;
         await freeSql.Update<Department>().SetSource(department).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(Department), department.Id.ToString(), "Delete", department, null, cancellationToken);
     }
 
     private async Task<Department> GetEntityAsync(long id, CancellationToken cancellationToken)
@@ -116,6 +121,26 @@ public sealed class DepartmentService(IFreeSql freeSql) : IDepartmentService
         }
     }
 
+    private async Task EnsureParentIsNotDescendantAsync(long currentId, long? parentId, CancellationToken cancellationToken)
+    {
+        if (!parentId.HasValue)
+        {
+            return;
+        }
+
+        var departments = await freeSql.Select<Department>().Where(x => x.DeletedAt == null).ToListAsync(cancellationToken);
+        var cursor = departments.FirstOrDefault(x => x.Id == parentId.Value);
+        while (cursor?.ParentId.HasValue == true)
+        {
+            if (cursor.ParentId.Value == currentId)
+            {
+                throw new BusinessException("BUSINESS_ERROR", "Department cannot use a descendant as parent.");
+            }
+
+            cursor = departments.FirstOrDefault(x => x.Id == cursor.ParentId.Value);
+        }
+    }
+
     private static IReadOnlyList<DepartmentDto> BuildTree(IReadOnlyList<Department> departments, long? parentId)
     {
         return departments
@@ -141,5 +166,25 @@ public sealed class DepartmentService(IFreeSql freeSql) : IDepartmentService
             department.IsBuiltIn,
             department.CreatedAt,
             children);
+    }
+
+    private static Department Clone(Department value)
+    {
+        return new Department
+        {
+            Id = value.Id,
+            ParentId = value.ParentId,
+            Code = value.Code,
+            Name = value.Name,
+            Leader = value.Leader,
+            Phone = value.Phone,
+            Email = value.Email,
+            SortOrder = value.SortOrder,
+            Status = value.Status,
+            IsBuiltIn = value.IsBuiltIn,
+            CreatedAt = value.CreatedAt,
+            UpdatedAt = value.UpdatedAt,
+            DeletedAt = value.DeletedAt
+        };
     }
 }

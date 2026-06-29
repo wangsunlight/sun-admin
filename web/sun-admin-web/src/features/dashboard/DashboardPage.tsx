@@ -112,6 +112,18 @@ export default function DashboardPage() {
             <strong>{stats?.failedLoginCountToday ?? 0}</strong>
             今日失败登录
           </span>
+          <span>
+            <strong>{stats?.apiErrorCountToday ?? 0}</strong>
+            今日接口错误
+          </span>
+          <span>
+            <strong>{stats?.activeSessionCount ?? 0}</strong>
+            在线会话
+          </span>
+          <span>
+            <strong>{stats?.pendingExportCount ?? 0}</strong>
+            待处理导出
+          </span>
         </div>
         <div className="quick-strip">
           <Button icon={<TeamOutlined />} onClick={() => navigate('/users')}>

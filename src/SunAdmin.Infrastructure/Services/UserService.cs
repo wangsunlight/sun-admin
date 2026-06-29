@@ -8,17 +8,22 @@ using SunAdmin.Domain.Enums;
 
 namespace SunAdmin.Infrastructure.Services;
 
-public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher, ICurrentUser currentUser) : IUserService
+public sealed class UserService(
+    IFreeSql freeSql,
+    IPasswordHasher passwordHasher,
+    ICurrentUser currentUser,
+    IPasswordPolicyService passwordPolicyService,
+    IEntityAuditService auditService) : IUserService
 {
     public async Task<PagedResult<UserDto>> GetPageAsync(UserQuery query, CancellationToken cancellationToken = default)
     {
         var pageIndex = Math.Max(query.PageIndex, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var selector = freeSql.Select<User>().Where(x => x.DeletedAt == null);
-        var scopedDepartmentId = await GetScopedDepartmentIdAsync(cancellationToken);
-        if (scopedDepartmentId.HasValue)
+        var scopedDepartmentIds = await GetScopedDepartmentIdsAsync(cancellationToken);
+        if (scopedDepartmentIds is not null)
         {
-            selector = selector.Where(x => x.DepartmentId == scopedDepartmentId.Value);
+            selector = selector.Where(x => x.DepartmentId.HasValue && scopedDepartmentIds.Contains(x.DepartmentId.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(query.Keyword))
@@ -78,6 +83,7 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
 
     public async Task<UserDto> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
     {
+        passwordPolicyService.Validate(request.Password);
         if (await freeSql.Select<User>().Where(x => x.DeletedAt == null && (x.UserName == request.UserName || x.Email == request.Email)).AnyAsync(cancellationToken))
         {
             throw new BusinessException("CONFLICT", "User name or email already exists.");
@@ -94,12 +100,14 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
         };
         user.Id = await freeSql.Insert(user).ExecuteIdentityAsync(cancellationToken);
         await ReplaceRolesAsync(user.Id, request.RoleIds ?? Array.Empty<long>(), cancellationToken);
+        await auditService.WriteAsync(nameof(User), user.Id.ToString(), "Create", null, user, cancellationToken);
         return await ToDtoAsync(user, cancellationToken);
     }
 
     public async Task<UserDto> UpdateAsync(long id, UpdateUserRequest request, CancellationToken cancellationToken = default)
     {
         var user = await GetEntityAsync(id, cancellationToken);
+        var before = Clone(user);
         if (await freeSql.Select<User>().Where(x => x.DeletedAt == null && x.Id != id && x.Email == request.Email).AnyAsync(cancellationToken))
         {
             throw new BusinessException("CONFLICT", "Email already exists.");
@@ -117,6 +125,7 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
         user.Status = request.Status;
         user.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(User), user.Id.ToString(), "Update", before, user, cancellationToken);
         return await ToDtoAsync(user, cancellationToken);
     }
 
@@ -130,6 +139,7 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
 
         user.DeletedAt = DateTime.UtcNow;
         await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(User), user.Id.ToString(), "Delete", user, null, cancellationToken);
     }
 
     public async Task SetEnabledAsync(long id, bool enabled, CancellationToken cancellationToken = default)
@@ -143,20 +153,25 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
         user.Status = enabled ? RecordStatus.Enabled : RecordStatus.Disabled;
         user.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(User), user.Id.ToString(), enabled ? "Enable" : "Disable", null, user, cancellationToken);
     }
 
     public async Task ResetPasswordAsync(long id, ResetPasswordRequest request, CancellationToken cancellationToken = default)
     {
         var user = await GetEntityAsync(id, cancellationToken);
+        passwordPolicyService.Validate(request.NewPassword);
         user.PasswordHash = passwordHasher.HashPassword(request.NewPassword);
         user.MustChangePassword = true;
         user.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<User>().SetSource(user).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(User), user.Id.ToString(), "ResetPassword", null, user, cancellationToken);
     }
 
-    public Task AssignRolesAsync(long id, AssignUserRolesRequest request, CancellationToken cancellationToken = default)
+    public async Task AssignRolesAsync(long id, AssignUserRolesRequest request, CancellationToken cancellationToken = default)
     {
-        return ReplaceRolesAsync(id, request.RoleIds, cancellationToken);
+        _ = await GetEntityAsync(id, cancellationToken);
+        await ReplaceRolesAsync(id, request.RoleIds, cancellationToken);
+        await auditService.WriteAsync(nameof(UserRole), id.ToString(), "AssignRoles", null, new { UserId = id, request.RoleIds }, cancellationToken);
     }
 
     public async Task BatchEnableAsync(BatchUserRequest request, bool enabled, CancellationToken cancellationToken = default)
@@ -183,10 +198,19 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
 
     private async Task ReplaceRolesAsync(long userId, IReadOnlyList<long> roleIds, CancellationToken cancellationToken)
     {
-        await freeSql.Delete<UserRole>().Where(x => x.UserId == userId).ExecuteAffrowsAsync(cancellationToken);
-        if (roleIds.Count > 0)
+        var targetRoleIds = roleIds.Distinct().ToHashSet();
+        var current = await freeSql.Select<UserRole>().Where(x => x.UserId == userId).ToListAsync(cancellationToken);
+        var currentRoleIds = current.Select(x => x.RoleId).ToHashSet();
+        var roleIdsToDelete = current.Where(x => !targetRoleIds.Contains(x.RoleId)).Select(x => x.Id).ToList();
+        if (roleIdsToDelete.Count > 0)
         {
-            await freeSql.Insert(roleIds.Distinct().Select(roleId => new UserRole { UserId = userId, RoleId = roleId })).ExecuteAffrowsAsync(cancellationToken);
+            await freeSql.Delete<UserRole>().Where(x => roleIdsToDelete.Contains(x.Id)).ExecuteAffrowsAsync(cancellationToken);
+        }
+
+        var roleIdsToInsert = targetRoleIds.Except(currentRoleIds).ToList();
+        if (roleIdsToInsert.Count > 0)
+        {
+            await freeSql.Insert(roleIdsToInsert.Select(roleId => new UserRole { UserId = userId, RoleId = roleId })).ExecuteAffrowsAsync(cancellationToken);
         }
     }
 
@@ -220,7 +244,7 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
             roles);
     }
 
-    private async Task<long?> GetScopedDepartmentIdAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<long>?> GetScopedDepartmentIdsAsync(CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is null || currentUser.Roles.Contains(SystemRoleCodes.SuperAdmin))
         {
@@ -232,12 +256,58 @@ public sealed class UserService(IFreeSql freeSql, IPasswordHasher passwordHasher
             .Where((userRole, role) => userRole.UserId == currentUser.UserId.Value && role.DeletedAt == null && role.Status == RecordStatus.Enabled)
             .ToListAsync((userRole, role) => role.DataScope, cancellationToken);
 
+        if (scopes.Contains(RoleDataScope.All))
+        {
+            return null;
+        }
+
         if (!scopes.Contains(RoleDataScope.OwnDepartment))
         {
             return null;
         }
 
         var user = await freeSql.Select<User>().Where(x => x.Id == currentUser.UserId.Value && x.DeletedAt == null).FirstAsync(cancellationToken);
-        return user?.DepartmentId ?? 0;
+        if (user?.DepartmentId is null)
+        {
+            return [];
+        }
+
+        var departments = await freeSql.Select<Department>().Where(x => x.DeletedAt == null).ToListAsync(cancellationToken);
+        var ids = new HashSet<long> { user.DepartmentId.Value };
+        var added = true;
+        while (added)
+        {
+            added = false;
+            foreach (var department in departments.Where(x => x.ParentId.HasValue && ids.Contains(x.ParentId.Value)))
+            {
+                if (ids.Add(department.Id))
+                {
+                    added = true;
+                }
+            }
+        }
+
+        return ids.ToList();
+    }
+
+    private static User Clone(User value)
+    {
+        return new User
+        {
+            Id = value.Id,
+            UserName = value.UserName,
+            DisplayName = value.DisplayName,
+            Email = value.Email,
+            PasswordHash = "***",
+            DepartmentId = value.DepartmentId,
+            PositionId = value.PositionId,
+            Status = value.Status,
+            IsBuiltIn = value.IsBuiltIn,
+            MustChangePassword = value.MustChangePassword,
+            LastLoginAt = value.LastLoginAt,
+            CreatedAt = value.CreatedAt,
+            UpdatedAt = value.UpdatedAt,
+            DeletedAt = value.DeletedAt
+        };
     }
 }

@@ -77,6 +77,7 @@ export default function SessionManagementPage() {
     { title: 'IP', dataIndex: 'ipAddress', width: 150, render: (value) => value || '-' },
     { title: '状态', width: 100, render: (_, record) => getSessionStatus(record) },
     { title: '登录时间', dataIndex: 'createdAt', width: 180, render: formatDateTime },
+    { title: '最后活跃', dataIndex: 'lastSeenAt', width: 180, render: formatDateTime },
     { title: '过期时间', dataIndex: 'expiresAt', width: 180, render: formatDateTime },
     {
       title: '操作',

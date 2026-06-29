@@ -5,7 +5,7 @@ using SunAdmin.Domain.Entities;
 
 namespace SunAdmin.Infrastructure.Services;
 
-public sealed class SettingService(IFreeSql freeSql) : ISettingService
+public sealed class SettingService(IFreeSql freeSql, IEntityAuditService auditService) : ISettingService
 {
     public async Task<IReadOnlyList<SettingDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -18,9 +18,11 @@ public sealed class SettingService(IFreeSql freeSql) : ISettingService
         var setting = await freeSql.Select<SystemSetting>().Where(x => x.Key == key).FirstAsync(cancellationToken)
             ?? throw new BusinessException("NOT_FOUND", "Setting not found.");
 
+        var before = new { setting.Key, setting.Value };
         setting.Value = request.Value.Trim();
         setting.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<SystemSetting>().SetSource(setting).ExecuteAffrowsAsync(cancellationToken);
+        await auditService.WriteAsync(nameof(SystemSetting), setting.Id.ToString(), "Update", before, new { setting.Key, setting.Value }, cancellationToken);
         return ToDto(setting);
     }
 

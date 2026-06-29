@@ -38,6 +38,8 @@ public sealed class SessionService(IFreeSql freeSql) : ISessionService
             x.UserAgent,
             x.CreatedAt,
             x.ExpiresAt,
+            x.RefreshTokenExpiresAt,
+            x.LastSeenAt,
             x.RevokedAt)).ToList();
 
         return new PagedResult<SessionDto>(items, total, pageIndex, pageSize);
@@ -50,6 +52,7 @@ public sealed class SessionService(IFreeSql freeSql) : ISessionService
         if (session.RevokedAt is null)
         {
             session.RevokedAt = DateTime.UtcNow;
+            session.RevokedReason = "admin_revoke";
             session.UpdatedAt = DateTime.UtcNow;
             await freeSql.Update<LoginSession>().SetSource(session).ExecuteAffrowsAsync(cancellationToken);
         }

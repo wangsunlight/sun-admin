@@ -28,6 +28,9 @@ public sealed class DashboardService(IFreeSql freeSql) : IDashboardService
             await freeSql.Select<Menu>().Where(x => x.DeletedAt == null).CountAsync(cancellationToken),
             await freeSql.Select<OperationLog>().Where(x => x.CreatedAt >= today).CountAsync(cancellationToken),
             await freeSql.Select<LoginLog>().Where(x => x.CreatedAt >= today && !x.Succeeded).CountAsync(cancellationToken),
+            await freeSql.Select<OperationLog>().Where(x => x.CreatedAt >= today && x.StatusCode >= 500).CountAsync(cancellationToken),
+            await freeSql.Select<LoginSession>().Where(x => x.RevokedAt == null && x.ExpiresAt > DateTime.UtcNow).CountAsync(cancellationToken),
+            await freeSql.Select<ExportTask>().Where(x => x.Status == ExportTaskStatus.Pending || x.Status == ExportTaskStatus.Running).CountAsync(cancellationToken),
             recentOperations.Select(LogQueryService.ToDto).ToList(),
             recentLogins.Select(LogQueryService.ToDto).ToList());
     }
