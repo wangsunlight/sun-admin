@@ -37,12 +37,13 @@ public sealed class DictionaryService(IFreeSql freeSql, IEntityAuditService audi
 
     public async Task<DictionaryDto> CreateAsync(CreateDictionaryRequest request, CancellationToken cancellationToken = default)
     {
-        if (await freeSql.Select<DataDictionary>().Where(x => x.DeletedAt == null && x.Code == request.Code).AnyAsync(cancellationToken))
+        var code = request.Code.Trim();
+        if (await freeSql.Select<DataDictionary>().Where(x => x.DeletedAt == null && x.Code == code).AnyAsync(cancellationToken))
         {
             throw new BusinessException("CONFLICT", "Dictionary code already exists.");
         }
 
-        var dictionary = new DataDictionary { Code = request.Code.Trim(), Name = request.Name.Trim(), Description = request.Description };
+        var dictionary = new DataDictionary { Code = code, Name = request.Name.Trim(), Description = TrimToNull(request.Description) };
         dictionary.Id = await freeSql.Insert(dictionary).ExecuteIdentityAsync(cancellationToken);
         await auditService.WriteAsync(nameof(DataDictionary), dictionary.Id.ToString(), "Create", null, dictionary, cancellationToken);
         return await ToDtoAsync(dictionary, cancellationToken);
@@ -58,7 +59,7 @@ public sealed class DictionaryService(IFreeSql freeSql, IEntityAuditService audi
 
         var before = Clone(dictionary);
         dictionary.Name = request.Name.Trim();
-        dictionary.Description = request.Description;
+        dictionary.Description = TrimToNull(request.Description);
         dictionary.Status = request.Status;
         dictionary.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<DataDictionary>().SetSource(dictionary).ExecuteAffrowsAsync(cancellationToken);
@@ -74,14 +75,33 @@ public sealed class DictionaryService(IFreeSql freeSql, IEntityAuditService audi
             throw new BusinessException("BUSINESS_ERROR", "Built-in dictionary cannot be deleted.");
         }
 
-        dictionary.DeletedAt = DateTime.UtcNow;
+        var before = Clone(dictionary);
+        var deletedAt = DateTime.UtcNow;
+        dictionary.Code = BuildDeletedUniqueValue(dictionary.Code, dictionary.Id);
+        dictionary.DeletedAt = deletedAt;
+        var items = await freeSql.Select<DataDictionaryItem>()
+            .Where(x => x.DictionaryId == dictionary.Id && x.DeletedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var item in items)
+        {
+            item.Value = BuildDeletedUniqueValue(item.Value, item.Id);
+            item.DeletedAt = deletedAt;
+            item.UpdatedAt = deletedAt;
+        }
+
         await freeSql.Update<DataDictionary>().SetSource(dictionary).ExecuteAffrowsAsync(cancellationToken);
-        await auditService.WriteAsync(nameof(DataDictionary), dictionary.Id.ToString(), "Delete", dictionary, null, cancellationToken);
+        if (items.Count > 0)
+        {
+            await freeSql.Update<DataDictionaryItem>().SetSource(items).ExecuteAffrowsAsync(cancellationToken);
+        }
+
+        await auditService.WriteAsync(nameof(DataDictionary), dictionary.Id.ToString(), "Delete", before, null, cancellationToken);
     }
 
     public async Task<DictionaryItemDto> UpsertItemAsync(long dictionaryId, long? itemId, UpsertDictionaryItemRequest request, CancellationToken cancellationToken = default)
     {
         _ = await GetEntityAsync(dictionaryId, cancellationToken);
+        var value = request.Value.Trim();
         DataDictionaryItem item;
         object? before = null;
         var changeType = "Create";
@@ -89,7 +109,7 @@ public sealed class DictionaryService(IFreeSql freeSql, IEntityAuditService audi
         {
             item = await freeSql.Select<DataDictionaryItem>().Where(x => x.Id == itemId.Value && x.DictionaryId == dictionaryId && x.DeletedAt == null).FirstAsync(cancellationToken)
                 ?? throw new BusinessException("NOT_FOUND", "Dictionary item not found.");
-            if (await freeSql.Select<DataDictionaryItem>().Where(x => x.DictionaryId == dictionaryId && x.DeletedAt == null && x.Id != item.Id && x.Value == request.Value).AnyAsync(cancellationToken))
+            if (await freeSql.Select<DataDictionaryItem>().Where(x => x.DictionaryId == dictionaryId && x.DeletedAt == null && x.Id != item.Id && x.Value == value).AnyAsync(cancellationToken))
             {
                 throw new BusinessException("CONFLICT", "Dictionary item value already exists.");
             }
@@ -99,7 +119,7 @@ public sealed class DictionaryService(IFreeSql freeSql, IEntityAuditService audi
         }
         else
         {
-            if (await freeSql.Select<DataDictionaryItem>().Where(x => x.DictionaryId == dictionaryId && x.DeletedAt == null && x.Value == request.Value).AnyAsync(cancellationToken))
+            if (await freeSql.Select<DataDictionaryItem>().Where(x => x.DictionaryId == dictionaryId && x.DeletedAt == null && x.Value == value).AnyAsync(cancellationToken))
             {
                 throw new BusinessException("CONFLICT", "Dictionary item value already exists.");
             }
@@ -108,7 +128,7 @@ public sealed class DictionaryService(IFreeSql freeSql, IEntityAuditService audi
         }
 
         item.Label = request.Label.Trim();
-        item.Value = request.Value.Trim();
+        item.Value = value;
         item.SortOrder = request.SortOrder;
         item.Status = request.Status;
         item.UpdatedAt = DateTime.UtcNow;
@@ -134,9 +154,11 @@ public sealed class DictionaryService(IFreeSql freeSql, IEntityAuditService audi
             throw new BusinessException("BUSINESS_ERROR", "Built-in dictionary item cannot be deleted.");
         }
 
+        var before = Clone(item);
+        item.Value = BuildDeletedUniqueValue(item.Value, item.Id);
         item.DeletedAt = DateTime.UtcNow;
         await freeSql.Update<DataDictionaryItem>().SetSource(item).ExecuteAffrowsAsync(cancellationToken);
-        await auditService.WriteAsync(nameof(DataDictionaryItem), item.Id.ToString(), "Delete", item, null, cancellationToken);
+        await auditService.WriteAsync(nameof(DataDictionaryItem), item.Id.ToString(), "Delete", before, null, cancellationToken);
     }
 
     private async Task<DataDictionary> GetEntityAsync(long id, CancellationToken cancellationToken)
@@ -165,6 +187,21 @@ public sealed class DictionaryService(IFreeSql freeSql, IEntityAuditService audi
     private static DictionaryItemDto ToDto(DataDictionaryItem item)
     {
         return new DictionaryItemDto(item.Id, item.DictionaryId, item.Label, item.Value, item.SortOrder, item.Status, item.IsBuiltIn);
+    }
+
+    private static string? TrimToNull(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
+
+    private static string BuildDeletedUniqueValue(string value, long id)
+    {
+        var suffix = $"__deleted_{id}";
+        const int maxLength = 128;
+        var baseLength = Math.Max(1, maxLength - suffix.Length);
+        var normalized = value.Length > baseLength ? value[..baseLength] : value;
+        return normalized + suffix;
     }
 
     private static DataDictionary Clone(DataDictionary value)

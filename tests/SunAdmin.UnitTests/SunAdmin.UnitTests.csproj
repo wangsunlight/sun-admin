@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\SunAdmin.Api\SunAdmin.Api.csproj" />
     <ProjectReference Include="..\..\src\SunAdmin.Application\SunAdmin.Application.csproj" />
     <ProjectReference Include="..\..\src\SunAdmin.Infrastructure\SunAdmin.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\SunAdmin.Domain\SunAdmin.Domain.csproj" />

@@ -28,12 +28,12 @@ public static class SystemPageRegistry
         new("logs", "日志审计", MenuType.Page, "/logs", "logs/LogManagementPage", null, "system", SystemPermissionCodes.OperationLogView, 17),
         new("sessions", "在线会话", MenuType.Page, "/sessions", "sessions/SessionManagementPage", null, "system", SystemPermissionCodes.SessionView, 18),
         new("settings", "系统配置", MenuType.Page, "/settings", "settings/SettingManagementPage", null, "system", SystemPermissionCodes.SettingView, 19),
-        new("dictionaries", "数据字典", MenuType.Page, "/dictionaries", "dictionaries/DictionaryManagementPage", null, "system", SystemPermissionCodes.DictionaryView, 20),
-        new("notifications", "通知公告", MenuType.Page, "/notifications", "notifications/NotificationManagementPage", null, "system", SystemPermissionCodes.NotificationView, 21),
-        new("files", "文件资源", MenuType.Page, "/files", "files/FileResourcePage", null, "system", SystemPermissionCodes.FileView, 22),
-        new("exports", "导出中心", MenuType.Page, "/exports", "exports/ExportTaskPage", null, "system", SystemPermissionCodes.ExportView, 23),
-        new("code-generation", "代码生成", MenuType.Page, "/code-generation", "codeGeneration/CodeGenerationPage", null, "system", SystemPermissionCodes.CodeGenerationView, 24),
-        new("entity-change-logs", "变更审计", MenuType.Page, "/entity-change-logs", "audit/EntityChangeLogPage", null, "system", SystemPermissionCodes.EntityChangeLogView, 25)
+        new("dictionaries", "数据字典", MenuType.Page, "/dictionaries", "platform/DictionaryManagementPage", null, "system", SystemPermissionCodes.DictionaryView, 20),
+        new("notifications", "通知公告", MenuType.Page, "/notifications", "platform/NotificationManagementPage", null, "system", SystemPermissionCodes.NotificationView, 21),
+        new("files", "文件资源", MenuType.Page, "/files", "platform/FileResourcePage", null, "system", SystemPermissionCodes.FileView, 22),
+        new("exports", "导出中心", MenuType.Page, "/exports", "platform/ExportTaskPage", null, "system", SystemPermissionCodes.ExportView, 23),
+        new("code-generation", "代码生成", MenuType.Page, "/code-generation", "platform/CodeGenerationPage", null, "system", SystemPermissionCodes.CodeGenerationView, 24),
+        new("entity-change-logs", "变更审计", MenuType.Page, "/entity-change-logs", "platform/EntityChangeLogPage", null, "system", SystemPermissionCodes.EntityChangeLogView, 25)
     ];
 
     public static IReadOnlyList<SystemPageDescriptor> Buttons { get; } =
@@ -71,6 +71,7 @@ public static class SystemPageRegistry
         Button("notifications.view", "查看通知", "notifications", SystemPermissionCodes.NotificationView, 1001),
         Button("notifications.create", "新建通知", "notifications", SystemPermissionCodes.NotificationCreate, 1002),
         Button("notifications.update", "编辑通知", "notifications", SystemPermissionCodes.NotificationUpdate, 1003),
+        Button("notifications.delete", "删除通知", "notifications", SystemPermissionCodes.NotificationDelete, 1004),
         Button("files.view", "查看文件", "files", SystemPermissionCodes.FileView, 1101),
         Button("files.create", "登记文件", "files", SystemPermissionCodes.FileCreate, 1102),
         Button("files.delete", "删除文件", "files", SystemPermissionCodes.FileDelete, 1103),
@@ -78,6 +79,8 @@ public static class SystemPageRegistry
         Button("exports.create", "创建导出", "exports", SystemPermissionCodes.ExportCreate, 1202),
         Button("code-generation.view", "查看模板", "code-generation", SystemPermissionCodes.CodeGenerationView, 1301),
         Button("code-generation.create", "新建模板", "code-generation", SystemPermissionCodes.CodeGenerationCreate, 1302),
+        Button("code-generation.update", "编辑模板", "code-generation", SystemPermissionCodes.CodeGenerationUpdate, 1303),
+        Button("code-generation.delete", "删除模板", "code-generation", SystemPermissionCodes.CodeGenerationDelete, 1304),
         Button("entity-change-logs.view", "查看变更审计", "entity-change-logs", SystemPermissionCodes.EntityChangeLogView, 1401)
     ];
 

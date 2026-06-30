@@ -18,11 +18,11 @@ public sealed class SettingService(IFreeSql freeSql, IEntityAuditService auditSe
         var setting = await freeSql.Select<SystemSetting>().Where(x => x.Key == key).FirstAsync(cancellationToken)
             ?? throw new BusinessException("NOT_FOUND", "Setting not found.");
 
-        var before = new { setting.Key, setting.Value };
+        var before = new { setting.Key, Value = SanitizeValue(setting.Key, setting.Value) };
         setting.Value = request.Value.Trim();
         setting.UpdatedAt = DateTime.UtcNow;
         await freeSql.Update<SystemSetting>().SetSource(setting).ExecuteAffrowsAsync(cancellationToken);
-        await auditService.WriteAsync(nameof(SystemSetting), setting.Id.ToString(), "Update", before, new { setting.Key, setting.Value }, cancellationToken);
+        await auditService.WriteAsync(nameof(SystemSetting), setting.Id.ToString(), "Update", before, new { setting.Key, Value = SanitizeValue(setting.Key, setting.Value) }, cancellationToken);
         return ToDto(setting);
     }
 
@@ -35,5 +35,18 @@ public sealed class SettingService(IFreeSql freeSql, IEntityAuditService auditSe
             setting.Name,
             setting.Description,
             setting.UpdatedAt);
+    }
+
+    private static string SanitizeValue(string key, string value)
+    {
+        return IsSensitiveKey(key) ? "***" : value;
+    }
+
+    private static bool IsSensitiveKey(string key)
+    {
+        return key.Contains("password", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("token", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("key", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -1,7 +1,8 @@
 import { ReloadOutlined } from '@ant-design/icons';
 import { App as AntApp, Button, Empty, Input, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useEffect, useState } from 'react';
+import type { TableProps } from 'antd';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { PageResult } from '../../types/api';
 import type { PlatformQuery } from '../../types/platform';
 
@@ -12,9 +13,16 @@ interface PlatformListPageProps<T extends { id: number }> {
   permission?: string;
   columns: ColumnsType<T>;
   load: (query: PlatformQuery) => Promise<PageResult<T>>;
+  toolbarExtra?: (helpers: PlatformListHelpers) => ReactNode;
+  actions?: (record: T, helpers: PlatformListHelpers) => ReactNode;
+  expandable?: TableProps<T>['expandable'];
 }
 
 const defaultQuery: PlatformQuery = { pageIndex: 1, pageSize: 20 };
+
+export interface PlatformListHelpers {
+  reload: () => Promise<void>;
+}
 
 export function PlatformListPage<T extends { id: number }>({
   title,
@@ -22,6 +30,9 @@ export function PlatformListPage<T extends { id: number }>({
   description,
   columns,
   load,
+  toolbarExtra,
+  actions,
+  expandable,
 }: PlatformListPageProps<T>) {
   const { message } = AntApp.useApp();
   const [query, setQuery] = useState(defaultQuery);
@@ -49,6 +60,26 @@ export function PlatformListPage<T extends { id: number }>({
       setLoading(false);
     }
   };
+
+  const helpers = useMemo<PlatformListHelpers>(() => ({
+    reload: () => loadItems(),
+  }), [query, keyword]);
+
+  const tableColumns = useMemo<ColumnsType<T>>(() => {
+    if (!actions) {
+      return columns;
+    }
+
+    return [
+      ...columns,
+      {
+        title: '操作',
+        width: 180,
+        fixed: 'right',
+        render: (_, record) => actions(record, helpers),
+      },
+    ];
+  }, [actions, columns, helpers]);
 
   useEffect(() => {
     void loadItems(defaultQuery);
@@ -86,13 +117,15 @@ export function PlatformListPage<T extends { id: number }>({
             刷新
           </Button>
         </div>
+        {toolbarExtra?.(helpers)}
       </div>
       <Table
         rowKey="id"
         loading={loading}
-        columns={columns}
+        columns={tableColumns}
         dataSource={items}
         scroll={{ x: 1000 }}
+        expandable={expandable}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" /> }}
         pagination={{
           current: query.pageIndex,

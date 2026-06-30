@@ -33,7 +33,7 @@ public sealed class NotificationsController(INotificationService notificationSer
     }
 
     [HttpDelete("{id:long}")]
-    [RequirePermission(SystemPermissionCodes.NotificationUpdate)]
+    [RequirePermission(SystemPermissionCodes.NotificationDelete)]
     public async Task<ActionResult<ApiResponse>> Delete(long id, CancellationToken cancellationToken)
     {
         await notificationService.DeleteAsync(id, cancellationToken);

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using SunAdmin.Application.Abstractions;
 using SunAdmin.Application.Common;
 using SunAdmin.Application.Menus;
@@ -262,7 +263,7 @@ public sealed class AuthService(
 
     private static string CreateRefreshToken(string sessionId)
     {
-        return $"{sessionId}.{Convert.ToBase64String(Guid.NewGuid().ToByteArray()).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
+        return $"{sessionId}.{Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
     }
 
     private static string ResolveSessionId(string refreshToken)

@@ -22,3 +22,9 @@ public sealed record CreateCodeGenerationTemplateRequest(
     string TemplateKey,
     string TargetKind,
     string Content);
+
+public sealed record UpdateCodeGenerationTemplateRequest(
+    string Name,
+    string TargetKind,
+    string Content,
+    RecordStatus Status);

@@ -24,4 +24,19 @@ public sealed class CodeGenerationController(ICodeGenerationService codeGenerati
     {
         return ApiResponse<CodeGenerationTemplateDto>.Ok(await codeGenerationService.CreateTemplateAsync(request, cancellationToken));
     }
+
+    [HttpPut("templates/{id:long}")]
+    [RequirePermission(SystemPermissionCodes.CodeGenerationUpdate)]
+    public async Task<ActionResult<ApiResponse<CodeGenerationTemplateDto>>> UpdateTemplate(long id, UpdateCodeGenerationTemplateRequest request, CancellationToken cancellationToken)
+    {
+        return ApiResponse<CodeGenerationTemplateDto>.Ok(await codeGenerationService.UpdateTemplateAsync(id, request, cancellationToken));
+    }
+
+    [HttpDelete("templates/{id:long}")]
+    [RequirePermission(SystemPermissionCodes.CodeGenerationDelete)]
+    public async Task<ActionResult<ApiResponse>> DeleteTemplate(long id, CancellationToken cancellationToken)
+    {
+        await codeGenerationService.DeleteTemplateAsync(id, cancellationToken);
+        return ApiResponse.Ok();
+    }
 }

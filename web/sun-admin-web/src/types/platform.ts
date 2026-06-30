@@ -21,6 +21,25 @@ export interface DictionaryItemGroup {
   items: DictionaryItem[];
 }
 
+export interface DictionaryCreateRequest {
+  code: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface DictionaryUpdateRequest {
+  name: string;
+  description?: string | null;
+  status: EntityStatus;
+}
+
+export interface DictionaryItemUpsertRequest {
+  label: string;
+  value: string;
+  sortOrder: number;
+  status: EntityStatus;
+}
+
 export interface NotificationItem {
   id: number;
   title: string;
@@ -33,6 +52,19 @@ export interface NotificationItem {
   createdAt: string;
 }
 
+export interface NotificationCreateRequest {
+  title: string;
+  content: string;
+  level: NotificationItem['level'];
+  publishAt?: string | null;
+  expiresAt?: string | null;
+  isPinned: boolean;
+}
+
+export interface NotificationUpdateRequest extends NotificationCreateRequest {
+  status: EntityStatus;
+}
+
 export interface FileResourceItem {
   id: number;
   fileName: string;
@@ -43,6 +75,14 @@ export interface FileResourceItem {
   storagePath: string;
   uploadedBy?: number | null;
   createdAt: string;
+}
+
+export interface FileResourceCreateRequest {
+  originalFileName: string;
+  contentType: string;
+  sizeBytes: number;
+  storageProvider: string;
+  storagePath: string;
 }
 
 export type ExportTaskStatus = 'Pending' | 'Running' | 'Succeeded' | 'Failed';
@@ -62,6 +102,12 @@ export interface ExportTaskItem {
   finishedAt?: string | null;
 }
 
+export interface ExportTaskCreateRequest {
+  taskName: string;
+  exportType: string;
+  parametersJson?: string | null;
+}
+
 export interface CodeGenerationTemplateItem {
   id: number;
   name: string;
@@ -71,6 +117,20 @@ export interface CodeGenerationTemplateItem {
   status: EntityStatus;
   isBuiltIn: boolean;
   createdAt: string;
+}
+
+export interface CodeGenerationTemplateCreateRequest {
+  name: string;
+  templateKey: string;
+  targetKind: string;
+  content: string;
+}
+
+export interface CodeGenerationTemplateUpdateRequest {
+  name: string;
+  targetKind: string;
+  content: string;
+  status: EntityStatus;
 }
 
 export interface EntityChangeLogItem {
